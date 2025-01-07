@@ -9,23 +9,21 @@ import (
 	"github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing/transport/http"
 	"github.com/rs/zerolog/log"
-	"github.com/spf13/viper"
+	"gopkg.in/yaml.v3"
 )
 
 type config struct {
-	Repos []string `mapstructure:"repos"`
+	Repos []string `yaml:"repos"`
 }
 
 func LoadConfig(path string) (*config, error) {
-	v := viper.New()
-	v.SetConfigFile(path)
-	if err := v.ReadInConfig(); err != nil {
-		log.Error().Err(err).Str("path", path).Msg("failed to read config file")
-		return nil, err
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("reading config file: %w", err)
 	}
 	var cfg config
-	if err := v.Unmarshal(&cfg); err != nil {
-		return nil, err
+	if err := yaml.Unmarshal(data, &cfg); err != nil {
+		return nil, fmt.Errorf("parsing config: %w", err)
 	}
 	return &cfg, nil
 }
@@ -90,7 +88,7 @@ func (m *manager) cloneRepo(repoURL, folderName string, auth *http.BasicAuth) er
 		URL:      repoURL,
 		Auth:     auth,
 		Mirror:   true,
-		Progress: os.Stdout,
+		Progress: nil,
 	})
 	return err
 }
@@ -104,7 +102,7 @@ func (m *manager) updateRepo(folderName string, auth *http.BasicAuth) error {
 	err = repo.Fetch(&git.FetchOptions{
 		Auth:     auth,
 		Force:    true,
-		Progress: os.Stdout,
+		Progress: nil,
 		Tags:     git.AllTags,
 	})
 	if err == git.NoErrAlreadyUpToDate {

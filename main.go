@@ -35,13 +35,9 @@ var rootCmd = &cobra.Command{
 	},
 }
 
-func Execute() {
-	rootCmd.PersistentFlags().StringVarP(&configPath, "config", "c", ".backhub.yaml", "path to config file")
+func main() {
+	rootCmd.Flags().StringVarP(&configPath, "config", "c", ".backhub.yaml", "path to config file")
 	if err := rootCmd.Execute(); err != nil {
 		os.Exit(1)
 	}
-}
-
-func main() {
-	rootCmd.Execute()
 }
