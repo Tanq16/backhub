@@ -98,3 +98,37 @@ repos:
 ```
 
 Lastly, use the `GH_TOKEN` environment variable as your GitHub personal access token to use perform the backup.
+
+# Using the Local Mirrors
+
+To use a local mirror as a Git repository source (like when you need to restore from the backup), the following can be done:
+
+1. Directly pull or clone from the mirror:
+    ```bash
+    # Add the mirror as remote to an existing repo
+    git remote add backup /path/to/your/mirror.git
+    git pull backup main # or any other branch
+
+    # clone from the mirror
+    git clone /path/to/your/mirror.git new-repo
+    ```
+
+2. Serve the mirror as a local Git server:
+    ```bash
+    # In the mirror directory
+    git daemon --base-path=/path/to/parent --export-all
+    # Clone from the new git server
+    git clone git://localhost/mirror.git
+    ```
+
+3. Using file protocol in the Git URL:
+    ```bash
+    git clone file:///path/to/mirror.git
+    ```
+
+Since it's a mirror, it contains all refs (branches, tags, etc.), so when you clone or pull from it, it can access everything like from the original. Use the following to see all branches and tags in the mirror:
+
+```bash
+git branch -a  # shows all branches
+git tag -l     # shows all tags
+```
