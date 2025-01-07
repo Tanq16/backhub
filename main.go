@@ -1,0 +1,46 @@
+package main
+
+import (
+	"os"
+
+	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/log"
+	"github.com/spf13/cobra"
+)
+
+var (
+	configPath string
+)
+
+var rootCmd = &cobra.Command{
+	Use:   "backhub",
+	Short: "GitHub repository backup tool using local mirrors",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		zerolog.TimeFieldFormat = zerolog.TimeFormatUnix
+		log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stdout})
+
+		cfg, err := loadConfig(configPath)
+		if err != nil {
+			log.Fatal().Err(err).Msg("failed to load configuration")
+		}
+
+		token := os.Getenv("GH_TOKEN")
+		if token == "" {
+			log.Fatal().Msg("GH_TOKEN not set - intended for use with GitHub API")
+		}
+
+		m := newManager(token)
+		return m.backupAll(cfg.Repos)
+	},
+}
+
+func Execute() {
+	rootCmd.PersistentFlags().StringVarP(&configPath, "config", "c", ".gh-back.yaml", "path to config file")
+	if err := rootCmd.Execute(); err != nil {
+		os.Exit(1)
+	}
+}
+
+func main() {
+	rootCmd.Execute()
+}
