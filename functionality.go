@@ -3,10 +3,11 @@ package main
 import (
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"sync"
 
+	"github.com/go-git/go-git/v5"
+	"github.com/go-git/go-git/v5/plumbing/transport/http"
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/viper"
 )
@@ -73,43 +74,47 @@ func (m *manager) backupAll(repos []string) error {
 func (m *manager) backupRepo(repo string) error {
 	folderName := getLocalFolderName(repo)
 	repoURL := m.buildRepoURL(repo)
+	auth := &http.BasicAuth{
+		Username: "backhub",
+		Password: m.token,
+	}
 	if _, err := os.Stat(folderName); os.IsNotExist(err) {
-		return m.cloneRepo(repoURL, folderName)
+		return m.cloneRepo(repoURL, folderName, auth)
 	}
-	return m.updateRepo(repoURL, folderName)
+	return m.updateRepo(folderName, auth)
 }
 
-func (m *manager) cloneRepo(repoURL, folderName string) error {
+func (m *manager) cloneRepo(repoURL, folderName string, auth *http.BasicAuth) error {
 	log.Info().Str("repo", repoURL).Msg("cloning repository")
-	cmd := exec.Command("git", "clone", "--mirror", repoURL, folderName)
-	return m.runGitCommand(cmd)
+	_, err := git.PlainClone(folderName, true, &git.CloneOptions{
+		URL:      repoURL,
+		Auth:     auth,
+		Mirror:   true,
+		Progress: os.Stdout,
+	})
+	return err
 }
 
-func (m *manager) updateRepo(repoURL, folderName string) error {
-	log.Info().Str("repo", repoURL).Msg("updating repository")
-	setURLCmd := exec.Command("git", "remote", "set-url", "origin", repoURL)
-	setURLCmd.Dir = folderName
-	if err := m.runGitCommand(setURLCmd); err != nil {
-		return err
-	}
-	fetchCmd := exec.Command("git", "fetch", "--all")
-	fetchCmd.Dir = folderName
-	return m.runGitCommand(fetchCmd)
-}
-
-func (m *manager) runGitCommand(cmd *exec.Cmd) error {
-	output, err := cmd.CombinedOutput()
+func (m *manager) updateRepo(folderName string, auth *http.BasicAuth) error {
+	log.Info().Str("folder", folderName).Msg("updating repository")
+	repo, err := git.PlainOpen(folderName)
 	if err != nil {
-		return fmt.Errorf("git command failed: %s: %w", string(output), err)
+		return fmt.Errorf("failed to open repository: %w", err)
 	}
-	return nil
+	err = repo.Fetch(&git.FetchOptions{
+		Auth:     auth,
+		Force:    true,
+		Progress: os.Stdout,
+		Tags:     git.AllTags,
+	})
+	if err == git.NoErrAlreadyUpToDate {
+		return nil
+	}
+	return err
 }
 
 func (m *manager) buildRepoURL(repo string) string {
-	if m.token == "" {
-		return fmt.Sprintf("https://%s", repo)
-	}
-	return fmt.Sprintf("https://%s@%s", m.token, repo)
+	return fmt.Sprintf("https://%s", repo)
 }
 
 func getLocalFolderName(repo string) string {
