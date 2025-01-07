@@ -6,6 +6,7 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
+	"github.com/tanq16/backhub/functionality"
 )
 
 var (
@@ -19,7 +20,7 @@ var rootCmd = &cobra.Command{
 		zerolog.TimeFieldFormat = zerolog.TimeFormatUnix
 		log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stdout})
 
-		cfg, err := loadConfig(configPath)
+		cfg, err := functionality.LoadConfig(configPath)
 		if err != nil {
 			log.Fatal().Err(err).Msg("failed to load configuration")
 		}
@@ -29,13 +30,13 @@ var rootCmd = &cobra.Command{
 			log.Fatal().Msg("GH_TOKEN not set - intended for use with GitHub API")
 		}
 
-		m := newManager(token)
-		return m.backupAll(cfg.Repos)
+		m := functionality.NewManager(token)
+		return m.BackupAll(cfg.Repos)
 	},
 }
 
 func Execute() {
-	rootCmd.PersistentFlags().StringVarP(&configPath, "config", "c", ".gh-back.yaml", "path to config file")
+	rootCmd.PersistentFlags().StringVarP(&configPath, "config", "c", ".backhub.yaml", "path to config file")
 	if err := rootCmd.Execute(); err != nil {
 		os.Exit(1)
 	}

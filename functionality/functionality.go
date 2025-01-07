@@ -1,4 +1,4 @@
-package main
+package functionality
 
 import (
 	"fmt"
@@ -16,7 +16,7 @@ type config struct {
 	Repos []string `mapstructure:"repos"`
 }
 
-func loadConfig(path string) (*config, error) {
+func LoadConfig(path string) (*config, error) {
 	v := viper.New()
 	v.SetConfigFile(path)
 	if err := v.ReadInConfig(); err != nil {
@@ -34,11 +34,11 @@ type manager struct {
 	token string
 }
 
-func newManager(token string) *manager {
+func NewManager(token string) *manager {
 	return &manager{token: token}
 }
 
-func (m *manager) backupAll(repos []string) error {
+func (m *manager) BackupAll(repos []string) error {
 	toProcess := make(chan string)
 	wg := new(sync.WaitGroup)
 
