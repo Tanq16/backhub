@@ -8,7 +8,7 @@
 </p>
 </p>
 
-`BackHub` is a simple yet powerful GitHub repository backup tool that creates and maintains complete local mirrors of your repositories. It supports concurrent backups, automated scheduling (every 3 days), and can be run either as a standalone binary or as a Docker container.
+`BackHub` is a simple GitHub repository backup tool that creates complete local mirrors of your repositories. It supports concurrent backup operations, automated scheduling (every 3 days when run in a container), offers a standalone binary or a Docker container, and is self-hostable.
 
 ---
 
@@ -16,12 +16,14 @@
 
 - Full repository mirroring including all branches, tags, and history
 - Concurrent backup processing for multiple repositories defined in a YAML config file
-- Automated backups with Docker deployment (every 3 days)
+- Automated backups and homelab-deployable with Docker deployment (every 3 days)
 - GitHub token-based authentication (to be used in an environment variable)
 - Easy restoration capability due to it being local mirror
 - Multi-arch and multi-OS binary for simple one-time usage
 
 # Installation
+
+The easiest way to download it is from the [project releases](https://github.com/Tanq16/backhub/releases).
 
 ### Go Install
 
@@ -29,11 +31,39 @@
 go install github.com/tanq16/backhub@latest
 ```
 
-### Docker Installation
+### Building from Source
+
+```bash
+git clone https://github.com/tanq16/backhub.git && \
+cd backhub && \
+go build
+```
+
+# Usage
+
+### Binary Mode
+
+Run `backhub` directly with default config path (`.backhub.yaml` in PWD) or specify a custom config like so:
+
+```bash
+backhub -c /path/to/config.yaml
+```
+
+For inline environment variable, use:
+
+```bash
+GH_TOKEN=pat_jsdhksjdskhjdhkajshkdjh backhub
+```
+
+### Docker Mode
+
+The Docker container uses a script that automatically runs the tool every 3 days to provide scheduled backups. First, set up a persistence repository:
 
 ```bash
 mkdir $HOME/backhub # this is where you put your .backhub.yaml file
 ```
+
+Then run the container like so:
 
 ```bash
 docker run -d \
@@ -43,36 +73,7 @@ docker run -d \
   tanq16/backhub:latest
 ```
 
-### Building from Source
-
-```bash
-git clone https://github.com/tanq16/backhub.git && cd backhub
-go build
-```
-
-# Usage
-
-### Binary Mode
-
-Run directly with default config path:
-```bash
-backhub
-```
-
-Specify custom config path:
-```bash
-backhub -c /path/to/config.yaml
-```
-
-For inline environment variable, use as:
-
-```bash
-GH_TOKEN=pat_jsdhksjdskhjdhkajshkdjh backhub
-```
-
-### Docker Mode
-
-The Docker container automatically runs backups every 3 days.
+Conversely, you can use the following compose file for Docker compose or a stack in Portainer, Dockge, etc.
 
 ```yaml
 version: "3.8"
@@ -88,7 +89,7 @@ services:
 
 # YAML Config File
 
-BackHub uses a simple YAML configuration file. Default path is `.backhub.yaml`:
+BackHub uses a simple YAML configuration file. Its default path is `.backhub.yaml` in the current working directory:
 
 ```yaml
 repos:
@@ -97,38 +98,28 @@ repos:
   - github.com/org/repo3
 ```
 
-Lastly, use the `GH_TOKEN` environment variable as your GitHub personal access token to use perform the backup.
+Lastly, use the `GH_TOKEN` environment variable as your GitHub personal access token to perform the backup of private repos.
 
 # Using the Local Mirrors
 
 To use a local mirror as a Git repository source (like when you need to restore from the backup), the following can be done:
 
-1. Directly pull or clone from the mirror:
+1. Directly pull or clone from the mirror treating it as a `backup` remote in an existing repository:
     ```bash
-    # Add the mirror as remote to an existing repo
     git remote add backup /path/to/your/mirror.git
     git pull backup main # or any other branch
-
-    # clone from the mirror
     git clone /path/to/your/mirror.git new-repo
     ```
 
-2. Serve the mirror as a local Git server:
+2. Serve the mirror via a local git server and use it :
     ```bash
-    # In the mirror directory
-    git daemon --base-path=/path/to/parent --export-all
-    # Clone from the new git server
-    git clone git://localhost/mirror.git
+    git daemon --base-path=/path/to/mirror --export-all
+    git clone git://localhost/mirror.git # in a different path
     ```
 
-3. Using file protocol in the Git URL:
+3. Use the mirror as a git server by refering to it through the file protocol:
     ```bash
     git clone file:///path/to/mirror.git
     ```
 
-Since it's a mirror, it contains all refs (branches, tags, etc.), so when you clone or pull from it, it can access everything like from the original. Use the following to see all branches and tags in the mirror:
-
-```bash
-git branch -a  # shows all branches
-git tag -l     # shows all tags
-```
+Being a mirror, it contains all references (branches, tags, etc.), so cloning or pulling from it allows accessing everything as if it's the original. Use `git branch -a` to see all branches and `git tag -l` to see all tags in the mirror.

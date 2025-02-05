@@ -57,7 +57,11 @@ func (m *manager) BackupAll(repos []string) error {
 			go func(repo string) {
 				defer wg.Done()
 				if err := m.backupRepo(repo); err != nil {
-					log.Error().Err(err).Str("repo", repo).Msg("failed to backup repository")
+					if m.token == "" {
+						log.Error().Err(err).Str("repo", repo).Msg("failed to backup repository - might be private and require authentication")
+					} else {
+						log.Error().Err(err).Str("repo", repo).Msg("failed to backup repository")
+					}
 				} else {
 					log.Info().Str("repo", repo).Msg("repository backed up")
 				}

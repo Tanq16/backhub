@@ -10,6 +10,6 @@ run_backup
 
 # Schedule backup every 3 days
 while true; do
-    sleep 259200  # 3 days in seconds
+    sleep 259200
     run_backup
 done

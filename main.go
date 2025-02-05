@@ -27,7 +27,7 @@ var rootCmd = &cobra.Command{
 
 		token := os.Getenv("GH_TOKEN")
 		if token == "" {
-			log.Fatal().Msg("GH_TOKEN not set - intended for use with GitHub API")
+			log.Warn().Msg("GH_TOKEN not set - intended for use with GitHub API")
 		}
 
 		m := functionality.NewManager(token)
