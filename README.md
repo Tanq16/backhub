@@ -104,6 +104,8 @@ repos:
   - github.com/org/repo3
 ```
 
+For Docker, put the config file in the mounted directory and name it `config.yaml`.
+
 # Using the Local Mirrors
 
 To use a local mirror as a Git repository source (like when you need to restore from the backup), the following can be done:

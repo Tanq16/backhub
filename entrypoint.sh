@@ -2,7 +2,7 @@
 
 run_backup() {
     echo "Starting backup at $(date)"
-    backhub
+    backhub /app/config.yaml
     echo "Backup completed at $(date)"
 }
 
