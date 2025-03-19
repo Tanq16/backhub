@@ -65,7 +65,7 @@ jobs:
           go-version: '1.23'
       - name: Build Binary
         run: |
-          GOOS=${{ matrix.os }} GOARCH=${{ matrix.arch }} go build -o backhub-${{ matrix.os }}-${{ matrix.arch }}${{ matrix.os == 'windows' && '.exe' || '' }}
+          GOOS=${{ matrix.os }} GOARCH=${{ matrix.arch }} go build -ldflags="-s -w -X github.com/tanq16/backhub/cmd.BackHubVersion=${{ needs.create-release.outputs.version }}" -o backhub-${{ matrix.os }}-${{ matrix.arch }}${{ matrix.os == 'windows' && '.exe' || '' }}
       - name: Upload Release Asset
         run: |
           gh release upload "${{ needs.create-release.outputs.version }}" \

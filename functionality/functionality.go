@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sync"
 
 	"github.com/go-git/go-git/v5"
@@ -12,16 +13,20 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-type config struct {
+type Config struct {
 	Repos []string `yaml:"repos"`
 }
 
-func LoadConfig(path string) (*config, error) {
+func LoadConfig(path string) (*Config, error) {
+	repoRegex := "^github.com/[^/]+/[^/]+$"
+	if regexp.MustCompile(repoRegex).MatchString(path) {
+		return &Config{Repos: []string{path}}, nil
+	}
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("reading config file: %w", err)
 	}
-	var cfg config
+	var cfg Config
 	if err := yaml.Unmarshal(data, &cfg); err != nil {
 		return nil, fmt.Errorf("parsing config: %w", err)
 	}

@@ -1,14 +1,16 @@
 <p align="center">
-<img src=".github/assets/logo.png" alt="BackHub Logo" width="250" height="250" /><br>
+<img src=".github/assets/logo.png" alt="BackHub Logo" width="275" /><br>
 <h1 align="center">BackHub</h1><br>
 
 <p align="center">
-<a href="https://github.com/tanq16/backhub/actions/workflows/release.yml"><img src="https://github.com/tanq16/backhub/actions/workflows/release.yml/badge.svg" alt="Release Build"></a>&nbsp;<a href="https://goreportcard.com/report/github.com/tanq16/backhub"><img src="https://goreportcard.com/badge/github.com/tanq16/backhub" alt="Go Report Card"></a><br>
+<a href="https://github.com/tanq16/backhub/actions/workflows/release.yml"><img src="https://github.com/tanq16/backhub/actions/workflows/release.yml/badge.svg" alt="Release Build"></a><br>
 <a href="https://github.com/Tanq16/backhub/releases"><img alt="GitHub Release" src="https://img.shields.io/github/v/release/tanq16/backhub"></a>&nbsp;<a href="https://hub.docker.com/r/tanq16/backhub"><img alt="Docker Pulls" src="https://img.shields.io/docker/pulls/tanq16/backhub"></a>
 </p>
 </p>
 
-`BackHub` is a simple GitHub repository backup tool that creates complete local mirrors of your repositories. It supports concurrent backup operations, automated scheduling (every 3 days when run in a container), offers a standalone binary or a Docker container, and is self-hostable.
+<p align="center">
+<b>BackHub</b> is a simple GitHub repository backup tool that creates complete local mirrors of your repositories. It supports concurrent backup operations, automated scheduling (every 3 days when self-hosted with Docker), and offers a standalone binary as well.
+</p>
 
 ---
 
@@ -43,16 +45,20 @@ go build
 
 ### Binary Mode
 
-Run `backhub` directly with default config path (`.backhub.yaml` in PWD) or specify a custom config like so:
-
-```bash
-backhub -c /path/to/config.yaml
-```
-
-For inline environment variable, use:
+Backhub uses an environment variable to authenticate to GitHub. To do this, set your `GH_TOKEN` variable. This can be done inline with:
 
 ```bash
 GH_TOKEN=pat_jsdhksjdskhjdhkajshkdjh backhub
+```
+
+With the environment variable in the picture, run `backhub` by directly specifying a repository or specify a custom config like so:
+
+```bash
+# config file
+backhub /path/to/config.yaml
+
+# direct repo
+backhub github.com/tanq16/backhub
 ```
 
 ### Docker Mode
@@ -60,7 +66,7 @@ GH_TOKEN=pat_jsdhksjdskhjdhkajshkdjh backhub
 The Docker container uses a script that automatically runs the tool every 3 days to provide scheduled backups. First, set up a persistence repository:
 
 ```bash
-mkdir $HOME/backhub # this is where you put your .backhub.yaml file
+mkdir $HOME/backhub # this is where the mirrors will be stored
 ```
 
 Then run the container like so:
@@ -89,7 +95,7 @@ services:
 
 # YAML Config File
 
-BackHub uses a simple YAML configuration file. Its default path is `.backhub.yaml` in the current working directory:
+BackHub uses a simple YAML configuration file:
 
 ```yaml
 repos:
@@ -97,8 +103,6 @@ repos:
   - github.com/username/repo2
   - github.com/org/repo3
 ```
-
-Lastly, use the `GH_TOKEN` environment variable as your GitHub personal access token to perform the backup of private repos.
 
 # Using the Local Mirrors
 
@@ -110,13 +114,11 @@ To use a local mirror as a Git repository source (like when you need to restore 
     git pull backup main # or any other branch
     git clone /path/to/your/mirror.git new-repo
     ```
-
 2. Serve the mirror via a local git server and use it :
     ```bash
     git daemon --base-path=/path/to/mirror --export-all
     git clone git://localhost/mirror.git # in a different path
     ```
-
 3. Use the mirror as a git server by refering to it through the file protocol:
     ```bash
     git clone file:///path/to/mirror.git
