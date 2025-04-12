@@ -7,7 +7,7 @@ on:
   issue_comment:
     types: [created]
   workflow_run:
-    workflows: ["Release Build"]
+    workflows: ["Release"]
     types: [completed]
   pull_request_target:
     types: [opened, closed, edited, review_requested]
