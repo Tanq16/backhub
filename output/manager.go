@@ -4,24 +4,28 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+	"time"
 )
 
-// Output of a function
 type FunctionOutput struct {
 	Name        string
 	Status      string
 	Message     string
 	StreamLines []string
 	Complete    bool
+	StartTime   time.Time
+	LastUpdated time.Time
 }
 
 // Output manager
 type Manager struct {
-	outputs    map[string]*FunctionOutput
-	mutex      sync.RWMutex
-	numLines   int
-	maxStreams int               // Max stream lines per function
-	tables     map[string]*Table // Tables that can be displayed
+	outputs     map[string]*FunctionOutput
+	mutex       sync.RWMutex
+	numLines    int
+	maxStreams  int               // Max stream lines per function
+	tables      map[string]*Table // Tables that can be displayed
+	doneCh      chan struct{}     // Channel to signal stopping the display
+	displayTick time.Duration     // Interval between display updates
 }
 
 // Creates a new output manager
@@ -30,9 +34,11 @@ func NewManager(maxStreams int) *Manager {
 		maxStreams = 5 // Default value
 	}
 	return &Manager{
-		outputs:    make(map[string]*FunctionOutput),
-		tables:     make(map[string]*Table),
-		maxStreams: maxStreams,
+		outputs:     make(map[string]*FunctionOutput),
+		tables:      make(map[string]*Table),
+		maxStreams:  maxStreams,
+		doneCh:      make(chan struct{}),
+		displayTick: 200 * time.Millisecond, // 200ms default update interval
 	}
 }
 
@@ -44,6 +50,8 @@ func (m *Manager) Register(name string) {
 		Name:        name,
 		Status:      "pending",
 		StreamLines: []string{},
+		StartTime:   time.Now(),
+		LastUpdated: time.Now(),
 	}
 }
 
@@ -53,6 +61,7 @@ func (m *Manager) SetMessage(name, message string) {
 	defer m.mutex.Unlock()
 	if info, exists := m.outputs[name]; exists {
 		info.Message = message
+		info.LastUpdated = time.Now()
 	}
 }
 
@@ -62,6 +71,7 @@ func (m *Manager) SetStatus(name, status string) {
 	defer m.mutex.Unlock()
 	if info, exists := m.outputs[name]; exists {
 		info.Status = status
+		info.LastUpdated = time.Now()
 	}
 }
 
@@ -82,6 +92,7 @@ func (m *Manager) Complete(name string) {
 	if info, exists := m.outputs[name]; exists {
 		info.Complete = true
 		info.Status = "success"
+		info.LastUpdated = time.Now()
 	}
 }
 
@@ -93,6 +104,7 @@ func (m *Manager) ReportError(name string, err error) {
 		info.Complete = true
 		info.Status = "error"
 		info.Message = fmt.Sprintf("Error: %v", err)
+		info.LastUpdated = time.Now()
 	}
 }
 
@@ -116,6 +128,7 @@ func (m *Manager) UpdateStreamOutput(name string, output []string) {
 		} else {
 			info.StreamLines = append(info.StreamLines, output...)
 		}
+		info.LastUpdated = time.Now()
 	}
 }
 
@@ -148,6 +161,7 @@ func (m *Manager) ClearFunction(name string) {
 		info.Message = ""
 		info.Status = "pending"
 		info.Complete = false
+		info.LastUpdated = time.Now()
 	}
 }
 
@@ -204,8 +218,8 @@ func (m *Manager) RemoveTable(name string) {
 	delete(m.tables, name)
 }
 
-// Shows outputs of all current functions
-func (m *Manager) Display() {
+// Updates the console display with all function outputs
+func (m *Manager) updateDisplay() {
 	m.mutex.RLock()
 	defer m.mutex.RUnlock()
 	if m.numLines > 0 {
@@ -216,15 +230,67 @@ func (m *Manager) Display() {
 	for k := range m.outputs {
 		keys = append(keys, k)
 	}
+
+	// First active functions, then completed, then pending in sorted order
+	var activeKeys []string
+	var completedKeys []string
+	var pendingKeys []string
+	for _, k := range keys {
+		info := m.outputs[k]
+		if info.Complete {
+			completedKeys = append(completedKeys, k)
+		} else if info.Status == "pending" && info.Message == "" {
+			pendingKeys = append(pendingKeys, k)
+		} else {
+			activeKeys = append(activeKeys, k)
+		}
+	}
+
 	// Print active functions
-	for _, name := range keys {
+	for _, name := range activeKeys {
 		info := m.outputs[name]
-		// Skip completed functions with no streams if desired
-		// if info.Complete && len(info.StreamLines) == 0 {
-		//    continue
-		// }
 		statusDisplay := m.GetStatusDisplay(info.Status)
-		fmt.Printf("%s %s: %s\n", statusDisplay, name, info.Message)
+		// Calculate elapsed time
+		elapsed := time.Since(info.StartTime).Round(time.Millisecond)
+		elapsedStr := ""
+		if elapsed > time.Second {
+			elapsedStr = fmt.Sprintf(" [%s]", elapsed)
+		}
+		fmt.Printf("%s %s%s: %s\n", statusDisplay, name, elapsedStr, info.Message)
+		lineCount++
+		if len(info.StreamLines) > 0 {
+			for _, line := range info.StreamLines {
+				fmt.Printf("\t%s→ %s%s\n", Colors["green"], line, Colors["reset"])
+				lineCount++
+			}
+		}
+	}
+
+	// Print pending functions
+	for _, name := range pendingKeys {
+		info := m.outputs[name]
+		statusDisplay := m.GetStatusDisplay(info.Status)
+		fmt.Printf("%s %s: Waiting...\n", statusDisplay, name)
+		lineCount++
+		if len(info.StreamLines) > 0 {
+			for _, line := range info.StreamLines {
+				fmt.Printf("\t%s→ %s%s\n", Colors["green"], line, Colors["reset"])
+				lineCount++
+			}
+		}
+	}
+
+	// Print completed functions
+	for _, name := range completedKeys {
+		info := m.outputs[name]
+		statusDisplay := m.GetStatusDisplay(info.Status)
+		// Calculate total time
+		totalTime := info.LastUpdated.Sub(info.StartTime).Round(time.Millisecond)
+		timeStr := ""
+		if totalTime > time.Millisecond {
+			timeStr = fmt.Sprintf(" [completed in %s]", totalTime)
+		}
+		fmt.Printf("%s %s%s: %s\n", statusDisplay, name, timeStr, info.Message)
 		lineCount++
 		if len(info.StreamLines) > 0 {
 			for _, line := range info.StreamLines {
@@ -234,6 +300,63 @@ func (m *Manager) Display() {
 		}
 	}
 	m.numLines = lineCount
+}
+
+// Starts the automatic display update goroutine
+func (m *Manager) StartDisplay() {
+	go func() {
+		ticker := time.NewTicker(m.displayTick)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ticker.C:
+				m.updateDisplay()
+			case <-m.doneCh:
+				m.updateDisplay()
+				return
+			}
+		}
+	}()
+}
+
+// Stops the automatic display updates
+func (m *Manager) StopDisplay() {
+	close(m.doneCh)
+}
+
+// Sets the interval between display updates
+func (m *Manager) SetUpdateInterval(interval time.Duration) {
+	m.displayTick = interval
+}
+
+// Displays a final summary of all functions
+func (m *Manager) ShowSummary() {
+	m.mutex.RLock()
+	defer m.mutex.RUnlock()
+	m.updateDisplay()
+	fmt.Println()
+
+	// Count success and failures
+	var success, failures int
+	totalTime := time.Duration(0)
+	for _, info := range m.outputs {
+		if info.Status == "success" {
+			success++
+		} else if info.Status == "error" {
+			failures++
+		}
+		if info.Complete {
+			totalTime += info.LastUpdated.Sub(info.StartTime)
+		}
+	}
+	// Calculate average time if there are completed functions
+	avgTime := time.Duration(0)
+	if success+failures > 0 {
+		avgTime = totalTime / time.Duration(success+failures)
+	}
+	fmt.Printf("%sTotal Operations: %d, Succeeded: %d, Failed: %d, Avg Time: %s%s\n",
+		Colors["blue"], len(m.outputs), success, failures,
+		avgTime.Round(time.Second), Colors["reset"])
 }
 
 // Removes a function from the manager
@@ -252,4 +375,9 @@ func (m *Manager) RemoveCompleted() {
 			delete(m.outputs, name)
 		}
 	}
+}
+
+// Shows outputs of all current functions (for a manual update)
+func (m *Manager) Display() {
+	m.updateDisplay()
 }
