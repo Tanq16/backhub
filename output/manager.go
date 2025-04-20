@@ -65,6 +65,16 @@ func (m *Manager) SetStatus(name, status string) {
 	}
 }
 
+// Retrieves the status of a function
+func (m *Manager) GetStatus(name string) string {
+	m.mutex.RLock()
+	defer m.mutex.RUnlock()
+	if info, exists := m.outputs[name]; exists {
+		return info.Status
+	}
+	return "unknown"
+}
+
 // Marks a function as complete
 func (m *Manager) Complete(name string) {
 	m.mutex.Lock()
@@ -127,6 +137,18 @@ func (m *Manager) ClearLines(n int) {
 	}
 	fmt.Printf("\033[%dA\033[J", n)
 	m.numLines = max(m.numLines-n, 0)
+}
+
+// Clears the output of a specific function
+func (m *Manager) ClearFunction(name string) {
+	m.mutex.Lock()
+	defer m.mutex.Unlock()
+	if info, exists := m.outputs[name]; exists {
+		info.StreamLines = []string{}
+		info.Message = ""
+		info.Status = "pending"
+		info.Complete = false
+	}
 }
 
 // Returns a colored status indicator based on status
