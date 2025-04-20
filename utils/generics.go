@@ -4,147 +4,155 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+
+	"github.com/charmbracelet/lipgloss"
 )
 
-var Colors = map[string]string{
-	"red":            "\033[31m",
-	"green":          "\033[32m",
-	"yellow":         "\033[33m",
-	"blue":           "\033[34m",
-	"purple":         "\033[35m",
-	"cyan":           "\033[36m",
-	"white":          "\033[37m",
-	"black":          "\033[30m",
-	"grey":           "\033[90m",
-	"brightRed":      "\033[91m",
-	"brightGreen":    "\033[92m",
-	"brightYellow":   "\033[93m",
-	"brightBlue":     "\033[94m",
-	"brightPurple":   "\033[95m",
-	"brightCyan":     "\033[96m",
-	"brightWhite":    "\033[97m",
-	"darkRed":        "\033[38;5;124m",
-	"darkGreen":      "\033[38;5;28m",
-	"darkYellow":     "\033[38;5;214m",
-	"darkBlue":       "\033[38;5;32m",
-	"darkPurple":     "\033[38;5;93m",
-	"darkCyan":       "\033[38;5;39m",
-	"darkWhite":      "\033[38;5;255m",
-	"bgRed":          "\033[41m",
-	"bgGreen":        "\033[42m",
-	"bgYellow":       "\033[43m",
-	"bgBlue":         "\033[44m",
-	"bgPurple":       "\033[45m",
-	"bgCyan":         "\033[46m",
-	"bgWhite":        "\033[47m",
-	"bgBlack":        "\033[40m",
-	"bgGrey":         "\033[100m",
-	"bgBrightRed":    "\033[101m",
-	"bgBrightGreen":  "\033[102m",
-	"bgBrightYellow": "\033[103m",
-	"bgBrightBlue":   "\033[104m",
-	"bgBrightPurple": "\033[105m",
-	"bgBrightCyan":   "\033[106m",
-	"bgBrightWhite":  "\033[107m",
-	"bold":           "\033[1m",
-	"dim":            "\033[2m",
-	"italic":         "\033[3m",
-	"underline":      "\033[4m",
-	"blink":          "\033[5m",
-	"reset":          "\033[0m",
-	"teal":           "\033[38;5;37m",
-	"orange":         "\033[38;5;208m",
-	"pink":           "\033[38;5;200m",
-	"brown":          "\033[38;5;130m",
-	"lightBlue":      "\033[38;5;153m",
-	"lightGreen":     "\033[38;5;82m",
-	"lightYellow":    "\033[38;5;226m",
-	"lightPurple":    "\033[38;5;129m",
-	"lightCyan":      "\033[38;5;87m",
-	"lightWhite":     "\033[38;5;255m",
-	"lightGrey":      "\033[38;5;245m",
-	"lightBlack":     "\033[38;5;235m",
-	"lightRed":       "\033[38;5;196m",
-	"lightMagenta":   "\033[38;5;201m",
-	"lightOrange":    "\033[38;5;214m",
-	"lightPink":      "\033[38;5;213m",
-	"lightBrown":     "\033[38;5;130m",
-	"lightTeal":      "\033[38;5;37m",
-	"lightTurquoise": "\033[38;5;51m",
-	"lightViolet":    "\033[38;5;93m",
-	"lightCoral":     "\033[38;5;196m",
-	"lightSalmon":    "\033[38;5;210m",
-	"lightLavender":  "\033[38;5;189m",
-	"lightMint":      "\033[38;5;121m",
-	"lightPeach":     "\033[38;5;214m",
-	"lightLime":      "\033[38;5;190m",
-	"lightOlive":     "\033[38;5;178m",
-	"lightPlum":      "\033[38;5;129m",
-	"lightSlate":     "\033[38;5;240m",
-	"lightSteel":     "\033[38;5;246m",
-	"lightSea":       "\033[38;5;44m",
-	"lightSky":       "\033[38;5;153m",
-	"pass":           "✓",
-	"fail":           "✗",
+// StyleColors provides a set of commonly used colors
+var StyleColors = map[string]lipgloss.Color{
+	"red":          lipgloss.Color("9"),   // standard red
+	"green":        lipgloss.Color("2"),   // muted green
+	"yellow":       lipgloss.Color("11"),  // yellow
+	"blue":         lipgloss.Color("12"),  // blue
+	"purple":       lipgloss.Color("13"),  // purple
+	"cyan":         lipgloss.Color("14"),  // cyan
+	"white":        lipgloss.Color("255"), // white
+	"black":        lipgloss.Color("0"),   // black
+	"grey":         lipgloss.Color("240"), // grey
+	"brightRed":    lipgloss.Color("196"), // bright red
+	"brightGreen":  lipgloss.Color("46"),  // bright green
+	"brightYellow": lipgloss.Color("226"), // bright yellow
+	"brightBlue":   lipgloss.Color("33"),  // bright blue
+	"brightPurple": lipgloss.Color("164"), // bright purple
+	"brightCyan":   lipgloss.Color("51"),  // bright cyan
+	"brightWhite":  lipgloss.Color("255"), // bright white
+	"darkRed":      lipgloss.Color("124"), // dark red
+	"darkGreen":    lipgloss.Color("28"),  // dark green
+	"darkYellow":   lipgloss.Color("142"), // dark yellow
+	"darkBlue":     lipgloss.Color("19"),  // dark blue
+	"darkPurple":   lipgloss.Color("91"),  // dark purple
+	"darkCyan":     lipgloss.Color("31"),  // dark cyan
+	"darkWhite":    lipgloss.Color("245"), // dark white (light grey)
+	"lightGrey":    lipgloss.Color("250"), // light grey
+	"mediumGrey":   lipgloss.Color("244"), // medium grey
+	"orange":       lipgloss.Color("208"), // orange
+	"pink":         lipgloss.Color("200"), // pink
+	"teal":         lipgloss.Color("37"),  // teal
+	"success":      lipgloss.Color("2"),   // success color (muted green)
+	"error":        lipgloss.Color("9"),   // error color (red)
+	"warning":      lipgloss.Color("11"),  // warning color (yellow)
+	"info":         lipgloss.Color("12"),  // info color (blue)
+	"detail":       lipgloss.Color("13"),  // detail color (purple)
+	"pass":         lipgloss.Color("2"),   // pass color (muted green)
+	"fail":         lipgloss.Color("9"),   // fail color (red)
 }
 
-// Formatting messages
+// StyleSymbols provides common symbols for statuses
+var StyleSymbols = map[string]string{
+	"pass":    "✓",
+	"fail":    "✗",
+	"warning": "!",
+	"pending": "○",
+	"info":    "ℹ",
+	"arrow":   "→",
+	"bullet":  "•",
+	"dot":     "·",
+}
+
+// SuccessMessage formats a message with success styling
 func SuccessMessage(msg string) string {
-	return fmt.Sprintf("%s%s%s", Colors["green"], msg, Colors["reset"])
-}
-func ErrorMessage(msg string) string {
-	return fmt.Sprintf("%s%s%s", Colors["red"], msg, Colors["reset"])
-}
-func WarningMessage(msg string) string {
-	return fmt.Sprintf("%s%s%s", Colors["yellow"], msg, Colors["reset"])
-}
-func InfoMessage(msg string) string {
-	return fmt.Sprintf("%s%s%s", Colors["blue"], msg, Colors["reset"])
-}
-func DetailMessage(msg string) string {
-	return fmt.Sprintf("%s%s%s", Colors["purple"], msg, Colors["reset"])
-}
-func DebugMessage(msg string) string {
-	return fmt.Sprintf("%s%s%s", Colors["grey"], msg, Colors["reset"])
-}
-func Colorize(msg string, color string) string {
-	colorCode, exists := Colors[color]
-	if !exists {
-		colorCode = Colors["reset"]
-	}
-	return fmt.Sprintf("%s%s%s", colorCode, msg, Colors["reset"])
+	return lipgloss.NewStyle().
+		Foreground(StyleColors["success"]).
+		Render(msg)
 }
 
-// Creates a title with formatting
+// ErrorMessage formats a message with error styling
+func ErrorMessage(msg string) string {
+	return lipgloss.NewStyle().
+		Foreground(StyleColors["error"]).
+		Render(msg)
+}
+
+// WarningMessage formats a message with warning styling
+func WarningMessage(msg string) string {
+	return lipgloss.NewStyle().
+		Foreground(StyleColors["warning"]).
+		Render(msg)
+}
+
+// InfoMessage formats a message with info styling
+func InfoMessage(msg string) string {
+	return lipgloss.NewStyle().
+		Foreground(StyleColors["info"]).
+		Render(msg)
+}
+
+// DetailMessage formats a message with detail styling
+func DetailMessage(msg string) string {
+	return lipgloss.NewStyle().
+		Foreground(StyleColors["detail"]).
+		Render(msg)
+}
+
+// DebugMessage formats a message with debug styling (grey)
+func DebugMessage(msg string) string {
+	return lipgloss.NewStyle().
+		Foreground(StyleColors["grey"]).
+		Render(msg)
+}
+
+// Colorize formats a message with the specified color
+func Colorize(msg string, color string) string {
+	colorValue, exists := StyleColors[color]
+	if !exists {
+		colorValue = StyleColors["white"]
+	}
+	return lipgloss.NewStyle().
+		Foreground(colorValue).
+		Render(msg)
+}
+
+// FormatTitle creates a formatted title with optional width and color
 func FormatTitle(title string, width int, color string) string {
 	if width <= 0 {
 		width = 80
 	}
-	colorCode, exists := Colors[color]
+
+	colorValue, exists := StyleColors[color]
 	if !exists {
-		colorCode = Colors["blue"]
+		colorValue = StyleColors["blue"]
 	}
+
+	style := lipgloss.NewStyle().
+		Foreground(colorValue).
+		Bold(true)
+
 	padding := max(width-len(title)-4, 2)
 	leftPad := padding / 2
 	rightPad := padding - leftPad
-	result := fmt.Sprintf("%s[ %s%s%s ]%s",
-		colorCode,
+
+	result := style.Render(fmt.Sprintf("[ %s%s%s ]",
 		strings.Repeat("=", leftPad),
 		title,
-		strings.Repeat("=", rightPad),
-		Colors["reset"])
+		strings.Repeat("=", rightPad)))
+
 	return result
 }
 
-// Prints a simple progress bar
+// PrintProgress creates a progress bar with the given percentage
 func PrintProgress(current, total int, width int, color string) string {
 	if width <= 0 {
 		width = 30
 	}
-	colorCode, exists := Colors[color]
+
+	colorValue, exists := StyleColors[color]
 	if !exists {
-		colorCode = Colors["blue"]
+		colorValue = StyleColors["blue"]
 	}
+
+	style := lipgloss.NewStyle().
+		Foreground(colorValue)
+
 	percent := float64(current) / float64(total)
 	filled := min(int(percent*float64(width)), width)
 
@@ -155,10 +163,11 @@ func PrintProgress(current, total int, width int, color string) string {
 		bar += strings.Repeat(" ", width-filled-1)
 	}
 	bar += "]"
-	return fmt.Sprintf("%s%s%s %.1f%%", colorCode, bar, Colors["reset"], percent*100)
+
+	return style.Render(fmt.Sprintf("%s %.1f%%", bar, percent*100))
 }
 
-// SliceSame checks if two slices are same, but is not order-sensitive
+// SliceSame checks if two slices contain the same elements (order-insensitive)
 func SliceSame(slice1, slice2 []any) bool {
 	if len(slice1) != len(slice2) {
 		return false
@@ -174,4 +183,49 @@ func SliceSame(slice1, slice2 []any) bool {
 		}
 	}
 	return true
+}
+
+// FormatStatusSymbol returns a formatted status symbol with appropriate color
+func FormatStatusSymbol(status string) string {
+	switch status {
+	case "success", "pass":
+		return lipgloss.NewStyle().
+			Foreground(StyleColors["success"]).
+			Render(StyleSymbols["pass"])
+	case "error", "fail":
+		return lipgloss.NewStyle().
+			Foreground(StyleColors["error"]).
+			Render(StyleSymbols["fail"])
+	case "warning":
+		return lipgloss.NewStyle().
+			Foreground(StyleColors["warning"]).
+			Render(StyleSymbols["warning"])
+	case "pending":
+		return lipgloss.NewStyle().
+			Foreground(StyleColors["info"]).
+			Render(StyleSymbols["pending"])
+	default:
+		return lipgloss.NewStyle().
+			Foreground(StyleColors["info"]).
+			Render(StyleSymbols["bullet"])
+	}
+}
+
+// PaddedString returns a string with the specified padding
+func PaddedString(s string, padAmount int) string {
+	return strings.Repeat(" ", padAmount) + s
+}
+
+// JoinStringsWithPadding joins strings with a specified padding
+func JoinStringsWithPadding(str []string, padAmount int) string {
+	if len(str) == 0 {
+		return ""
+	}
+
+	result := str[0]
+	for i := 1; i < len(str); i++ {
+		result += strings.Repeat(" ", padAmount) + str[i]
+	}
+
+	return result
 }
