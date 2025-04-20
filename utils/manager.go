@@ -557,11 +557,8 @@ func (m *Manager) StartDisplay() {
 				if !m.unlimitedOutput {
 					m.ClearAll()
 				}
-				m.updateDisplay()
 				m.displayTables()
-				if m.unlimitedOutput {
-					m.displayErrors()
-				}
+				m.ShowSummary()
 				return
 			}
 		}
@@ -672,6 +669,8 @@ func (m *Manager) ShowSummary() {
 
 	// Print the summary
 	fmt.Println(summaryStyle.Render(fmt.Sprintf("%s, %s, %s", totalOps, succeeded, failed)))
+
+	fmt.Println("\nHEREHERE\nHEREHERE\nHEREHERE\nHEREHERE")
 
 	// Print all tables
 	m.displayTables()
