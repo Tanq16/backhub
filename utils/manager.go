@@ -191,9 +191,18 @@ func (m *Manager) ClearFunction(name string) {
 	if info, exists := m.outputs[name]; exists {
 		info.StreamLines = []string{}
 		info.Message = ""
-		info.Status = "pending"
-		info.Complete = false
+		// info.Status = "pending"
+		// info.Complete = false
 		info.LastUpdated = time.Now()
+	}
+}
+
+// Clear all function outputs
+func (m *Manager) ClearAll() {
+	m.mutex.Lock()
+	defer m.mutex.Unlock()
+	for name := range m.outputs {
+		m.ClearFunction(name)
 	}
 }
 
@@ -324,12 +333,12 @@ func (m *Manager) updateDisplay() {
 		}
 		fmt.Printf("%s %s%s: %s\n", statusDisplay, name, timeStr, info.Message)
 		lineCount++
-		if len(info.StreamLines) > 0 {
-			for _, line := range info.StreamLines {
-				fmt.Printf("\t%s→ %s%s\n", Colors["green"], line, Colors["reset"])
-				lineCount++
-			}
-		}
+		// if len(info.StreamLines) > 0 {
+		// 	for _, line := range info.StreamLines {
+		// 		fmt.Printf("\t%s→ %s%s\n", Colors["green"], line, Colors["reset"])
+		// 		lineCount++
+		// 	}
+		// }
 	}
 	m.numLines = lineCount
 }
@@ -369,14 +378,11 @@ func (m *Manager) SetUpdateInterval(interval time.Duration) {
 func (m *Manager) ShowSummary() {
 	m.mutex.RLock()
 	defer m.mutex.RUnlock()
-	// Only clear the screen if unlimited output is not enabled
 	if !m.unlimitedOutput {
-		m.updateDisplay()
+		m.ClearLines(m.numLines)
 	} else {
 		fmt.Println("\n--- Summary ---")
 	}
-
-	// Count success and failures
 	var success, failures int
 	totalTime := time.Duration(0)
 	for _, info := range m.outputs {
@@ -390,13 +396,12 @@ func (m *Manager) ShowSummary() {
 		}
 	}
 	// Calculate average time if there are completed functions
-	avgTime := time.Duration(0)
-	if success+failures > 0 {
-		avgTime = totalTime / time.Duration(success+failures)
-	}
-	fmt.Printf("%sTotal Operations: %d, Succeeded: %d, Failed: %d, Avg Time: %s%s\n",
-		Colors["blue"], len(m.outputs), success, failures,
-		avgTime.Round(time.Second), Colors["reset"])
+	// avgTime := time.Duration(0)
+	// if success+failures > 0 {
+	// 	avgTime = totalTime / time.Duration(success+failures)
+	// }
+	fmt.Printf("%sTotal Operations: %d, Succeeded: %d, Failed: %d%s\n",
+		Colors["blue"], len(m.outputs), success, failures, Colors["reset"])
 }
 
 // Removes a function from the manager
@@ -416,8 +421,3 @@ func (m *Manager) RemoveCompleted() {
 		}
 	}
 }
-
-// Shows outputs of all current functions (for a manual update)
-// func (m *Manager) Display() {
-// 	m.updateDisplay()
-// }
