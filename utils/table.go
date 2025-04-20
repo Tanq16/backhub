@@ -9,19 +9,38 @@ import (
 	"golang.org/x/term"
 )
 
-var boxChars = map[string]string{
-	"topLeft":     "╭",
-	"topRight":    "╮",
-	"bottomLeft":  "╰",
-	"bottomRight": "╯",
-	"horizontal":  "─",
-	"vertical":    "│",
-	"leftT":       "├",
-	"rightT":      "┤",
-	"topT":        "┬",
-	"bottomT":     "┴",
-	"cross":       "┼",
+// Box drawing characters using Lipgloss
+var tableStyle = struct {
+	topLeft     string
+	topRight    string
+	bottomLeft  string
+	bottomRight string
+	horizontal  string
+	vertical    string
+	leftT       string
+	rightT      string
+	topT        string
+	bottomT     string
+	cross       string
+}{
+	topLeft:     "╭",
+	topRight:    "╮",
+	bottomLeft:  "╰",
+	bottomRight: "╯",
+	horizontal:  "─",
+	vertical:    "│",
+	leftT:       "├",
+	rightT:      "┤",
+	topT:        "┬",
+	bottomT:     "┴",
+	cross:       "┼",
 }
+
+// Styled elements for the table
+// var (
+// headerStyle = lipgloss.NewStyle().Bold(true)
+// cellStyle = lipgloss.NewStyle()
+// )
 
 type Table struct {
 	Headers []string
@@ -127,14 +146,14 @@ func (t *Table) FormatTable(innerDividers bool) string {
 	totalWidth += len(colWidths) // add right border and dividers
 
 	// Draw top border & headers
-	outstring.WriteString(boxChars["topLeft"])
+	outstring.WriteString(tableStyle.topLeft)
 	for i, width := range colWidths {
-		outstring.WriteString(strings.Repeat(boxChars["horizontal"], width+2))
+		outstring.WriteString(strings.Repeat(tableStyle.horizontal, width+2))
 		if i < len(colWidths)-1 {
-			outstring.WriteString(boxChars["topT"])
+			outstring.WriteString(tableStyle.topT)
 		}
 	}
-	outstring.WriteString(boxChars["topRight"] + "\n")
+	outstring.WriteString(tableStyle.topRight + "\n")
 	wrappedHeaders := make([][]string, len(t.Headers))
 	maxHeaderLines := 1
 
@@ -148,7 +167,7 @@ func (t *Table) FormatTable(innerDividers bool) string {
 
 	// Print header rows
 	for line := range maxHeaderLines {
-		outstring.WriteString(boxChars["vertical"])
+		outstring.WriteString(tableStyle.vertical)
 		for i, wrappedHeader := range wrappedHeaders {
 			headerLine := ""
 			if line < len(wrappedHeader) {
@@ -156,24 +175,24 @@ func (t *Table) FormatTable(innerDividers bool) string {
 			}
 			format := fmt.Sprintf(" %%-%ds ", colWidths[i])
 			paddedHeader := fmt.Sprintf(format, headerLine)
-			paddedHeader = Colors["bold"] + paddedHeader + Colors["reset"]
+			paddedHeader = headerStyle.Render(paddedHeader)
 			outstring.WriteString(paddedHeader)
 			if i < len(wrappedHeaders)-1 {
-				outstring.WriteString(boxChars["vertical"])
+				outstring.WriteString(tableStyle.vertical)
 			}
 		}
-		outstring.WriteString(boxChars["vertical"] + "\n")
+		outstring.WriteString(tableStyle.vertical + "\n")
 	}
 
 	// Draw header/data divider
-	outstring.WriteString(boxChars["leftT"])
+	outstring.WriteString(tableStyle.leftT)
 	for i, width := range colWidths {
-		outstring.WriteString(strings.Repeat(boxChars["horizontal"], width+2))
+		outstring.WriteString(strings.Repeat(tableStyle.horizontal, width+2))
 		if i < len(colWidths)-1 {
-			outstring.WriteString(boxChars["cross"])
+			outstring.WriteString(tableStyle.cross)
 		}
 	}
-	outstring.WriteString(boxChars["rightT"] + "\n")
+	outstring.WriteString(tableStyle.rightT + "\n")
 
 	// Draw data rows
 	for r, row := range t.Rows {
@@ -190,7 +209,7 @@ func (t *Table) FormatTable(innerDividers bool) string {
 		}
 		// Print wrapped cell content
 		for line := range maxLines {
-			outstring.WriteString(boxChars["vertical"])
+			outstring.WriteString(tableStyle.vertical)
 			for i := range colWidths {
 				cellLine := ""
 				if i < len(wrappedCells) && line < len(wrappedCells[i]) {
@@ -199,34 +218,34 @@ func (t *Table) FormatTable(innerDividers bool) string {
 				format := fmt.Sprintf(" %%-%ds ", colWidths[i])
 				outstring.WriteString(fmt.Sprintf(format, cellLine))
 				if i < len(colWidths)-1 {
-					outstring.WriteString(boxChars["vertical"])
+					outstring.WriteString(tableStyle.vertical)
 				}
 			}
-			outstring.WriteString(boxChars["vertical"] + "\n")
+			outstring.WriteString(tableStyle.vertical + "\n")
 		}
 
 		// Draw inner row dividers
 		if r < len(t.Rows)-1 && innerDividers {
-			outstring.WriteString(boxChars["leftT"])
+			outstring.WriteString(tableStyle.leftT)
 			for i, width := range colWidths {
-				outstring.WriteString(strings.Repeat(boxChars["horizontal"], width+2))
+				outstring.WriteString(strings.Repeat(tableStyle.horizontal, width+2))
 				if i < len(colWidths)-1 {
-					outstring.WriteString(boxChars["cross"])
+					outstring.WriteString(tableStyle.cross)
 				}
 			}
-			outstring.WriteString(boxChars["rightT"] + "\n")
+			outstring.WriteString(tableStyle.rightT + "\n")
 		}
 	}
 
 	// Draw bottom border
-	outstring.WriteString(boxChars["bottomLeft"])
+	outstring.WriteString(tableStyle.bottomLeft)
 	for i, width := range colWidths {
-		outstring.WriteString(strings.Repeat(boxChars["horizontal"], width+2))
+		outstring.WriteString(strings.Repeat(tableStyle.horizontal, width+2))
 		if i < len(colWidths)-1 {
-			outstring.WriteString(boxChars["bottomT"])
+			outstring.WriteString(tableStyle.bottomT)
 		}
 	}
-	outstring.WriteString(boxChars["bottomRight"] + "\n")
+	outstring.WriteString(tableStyle.bottomRight + "\n")
 	return outstring.String()
 }
 

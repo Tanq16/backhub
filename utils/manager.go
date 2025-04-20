@@ -6,6 +6,29 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/charmbracelet/lipgloss"
+)
+
+// Predefined styles
+var (
+	// Basic styles
+	successStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("10"))
+	errorStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("9"))
+	warningStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("11"))
+	pendingStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("12"))
+	infoStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("14"))
+	streamStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("8"))
+	detailStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("13"))
+
+	// Status indicators
+	successMark = successStyle.Render("✓")
+	errorMark   = errorStyle.Render("✗")
+	warningMark = warningStyle.Render("!")
+	pendingMark = pendingStyle.Render("…")
+
+	// Header style
+	headerStyle = lipgloss.NewStyle().Bold(true)
 )
 
 type FunctionOutput struct {
@@ -120,7 +143,9 @@ func (m *Manager) Complete(name string) {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
 	if info, exists := m.outputs[name]; exists {
-		info.StreamLines = []string{}
+		if !m.unlimitedOutput {
+			info.StreamLines = []string{}
+		}
 		info.Complete = true
 		info.Status = "success"
 		info.LastUpdated = time.Now()
@@ -193,8 +218,6 @@ func (m *Manager) ClearFunction(name string) {
 	if info, exists := m.outputs[name]; exists {
 		info.StreamLines = []string{}
 		info.Message = ""
-		// info.Status = "pending"
-		// info.Complete = false
 		info.LastUpdated = time.Now()
 	}
 }
@@ -208,19 +231,19 @@ func (m *Manager) ClearAll() {
 	}
 }
 
-// Returns a colored status indicator based on status
+// Returns a styled status indicator based on status
 func (m *Manager) GetStatusDisplay(status string) string {
 	switch status {
 	case "success":
-		return fmt.Sprintf("%s[%s]", Colors["teal"], Colors["pass"])
+		return fmt.Sprintf("[%s]", successMark)
 	case "error":
-		return fmt.Sprintf("%s[%s]", Colors["red"], Colors["fail"])
+		return fmt.Sprintf("[%s]", errorMark)
 	case "warning":
-		return fmt.Sprintf("%s[!]", Colors["yellow"])
+		return fmt.Sprintf("[%s]", warningMark)
 	case "pending":
-		return fmt.Sprintf("%s[…]", Colors["blue"])
+		return fmt.Sprintf("[%s]", pendingMark)
 	default:
-		return fmt.Sprintf("%s[·]", Colors["grey"])
+		return "[-]"
 	}
 }
 
@@ -302,11 +325,25 @@ func (m *Manager) updateDisplay() {
 		if elapsed > time.Second {
 			elapsedStr = fmt.Sprintf("[%s]", elapsed)
 		}
-		fmt.Printf("%s %s: %s%s\n", statusDisplay, elapsedStr, info.Message, Colors["reset"])
+
+		// Style the message based on status
+		styledMessage := info.Message
+		switch info.Status {
+		case "success":
+			styledMessage = successStyle.Render(info.Message)
+		case "error":
+			styledMessage = errorStyle.Render(info.Message)
+		case "warning":
+			styledMessage = warningStyle.Render(info.Message)
+		case "pending":
+			styledMessage = pendingStyle.Render(info.Message)
+		}
+
+		fmt.Printf("%s %s: %s\n", statusDisplay, elapsedStr, styledMessage)
 		lineCount++
 		if len(info.StreamLines) > 0 {
 			for _, line := range info.StreamLines {
-				fmt.Printf("\t%s→ %s%s\n", Colors["grey"], line, Colors["reset"])
+				fmt.Printf("\t→ %s\n", streamStyle.Render(line))
 				lineCount++
 			}
 		}
@@ -316,11 +353,11 @@ func (m *Manager) updateDisplay() {
 	for _, name := range pendingKeys {
 		info := m.outputs[name]
 		statusDisplay := m.GetStatusDisplay(info.Status)
-		fmt.Printf("%s: Waiting...%s\n", statusDisplay, Colors["reset"])
+		fmt.Printf("%s: %s\n", statusDisplay, pendingStyle.Render("Waiting..."))
 		lineCount++
 		if len(info.StreamLines) > 0 {
 			for _, line := range info.StreamLines {
-				fmt.Printf("\t%s→ %s%s\n", Colors["grey"], line, Colors["reset"])
+				fmt.Printf("\t→ %s\n", streamStyle.Render(line))
 				lineCount++
 			}
 		}
@@ -336,14 +373,23 @@ func (m *Manager) updateDisplay() {
 		if totalTime > time.Millisecond {
 			timeStr = fmt.Sprintf("[completed in %s]", totalTime)
 		}
-		fmt.Printf("%s %s: %s%s\n", statusDisplay, timeStr, info.Message, Colors["reset"])
+
+		// Style message based on status
+		styledMessage := info.Message
+		if info.Status == "success" {
+			styledMessage = successStyle.Render(info.Message)
+		} else if info.Status == "error" {
+			styledMessage = errorStyle.Render(info.Message)
+		}
+
+		fmt.Printf("%s %s: %s\n", statusDisplay, timeStr, styledMessage)
 		lineCount++
-		// if len(info.StreamLines) > 0 {
-		// 	for _, line := range info.StreamLines {
-		// 		fmt.Printf("\t%s→ %s%s\n", Colors["green"], line, Colors["reset"])
-		// 		lineCount++
-		// 	}
-		// }
+		if m.unlimitedOutput && len(info.StreamLines) > 0 {
+			for _, line := range info.StreamLines {
+				fmt.Printf("\t→ %s\n", streamStyle.Render(line))
+				lineCount++
+			}
+		}
 	}
 	m.numLines = lineCount
 }
@@ -388,7 +434,7 @@ func (m *Manager) ShowSummary() {
 	defer m.mutex.RUnlock()
 	m.updateDisplay()
 	if m.unlimitedOutput {
-		fmt.Println("--------------------")
+		fmt.Println(lipgloss.NewStyle().Foreground(lipgloss.Color("8")).Render("--------------------"))
 	}
 	var success, failures int
 	totalTime := time.Duration(0)
@@ -402,13 +448,10 @@ func (m *Manager) ShowSummary() {
 			totalTime += info.LastUpdated.Sub(info.StartTime)
 		}
 	}
-	// Calculate average time if there are completed functions
-	// avgTime := time.Duration(0)
-	// if success+failures > 0 {
-	// 	avgTime = totalTime / time.Duration(success+failures)
-	// }
-	fmt.Printf("%sTotal Operations: %d, Succeeded: %d, Failed: %d%s\n",
-		Colors["blue"], len(m.outputs), success, failures, Colors["reset"])
+	summaryStyle := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("12"))
+	fmt.Printf("%s\n", summaryStyle.Render(
+		fmt.Sprintf("Total Operations: %d, Succeeded: %d, Failed: %d",
+			len(m.outputs), success, failures)))
 }
 
 // Removes a function from the manager
