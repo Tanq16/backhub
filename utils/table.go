@@ -145,7 +145,7 @@ func (t *Table) FormatLipglossTable(innerDividers bool) string {
 	// Headers
 	sb.WriteString(borderStyle.Render(border.Left))
 	for i, header := range t.Headers {
-		headerCell := headerStyle.Copy().Width(colWidths[i]).Render(header)
+		headerCell := headerStyle.Width(colWidths[i]).Render(header)
 		sb.WriteString(headerCell)
 		if i < len(t.Headers)-1 {
 			sb.WriteString(borderStyle.Render(border.Left))

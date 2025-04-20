@@ -672,6 +672,12 @@ func (m *Manager) ShowSummary() {
 
 	// Print the summary
 	fmt.Println(summaryStyle.Render(fmt.Sprintf("%s, %s, %s", totalOps, succeeded, failed)))
+
+	// Print all tables
+	m.displayTables()
+	if m.unlimitedOutput {
+		m.displayErrors()
+	}
 }
 
 // Remove removes a function from the manager

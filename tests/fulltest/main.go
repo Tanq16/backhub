@@ -175,7 +175,7 @@ func getRandomProgressMessage() string {
 	return messages[rand.Intn(len(messages))]
 }
 
-// runProgressReporter simulates a task with a progress bar
+// runProgressReporter simulates a task with a progress bar and table output
 func runProgressReporter(mgr *utils.Manager, wg *sync.WaitGroup) {
 	defer wg.Done()
 
@@ -183,8 +183,14 @@ func runProgressReporter(mgr *utils.Manager, wg *sync.WaitGroup) {
 	mgr.Register(progressName)
 	mgr.SetMessage(progressName, "Running task with progress reporting")
 
+	// Create a table for this function to track metrics
+	metricsTable := mgr.RegisterFunctionTable(progressName, "progress-metrics",
+		[]string{"Checkpoint", "Elapsed Time", "Status", "Resource Usage"})
+
 	// Total steps for our task
 	totalSteps := 20
+	startTime := time.Now()
+	checkpointTimes := make([]time.Time, 5) // Track time at specific checkpoints
 
 	// Simulate work with progress updates
 	for step := 1; step <= totalSteps; step++ {
@@ -199,15 +205,31 @@ func runProgressReporter(mgr *utils.Manager, wg *sync.WaitGroup) {
 		status := fmt.Sprintf("Step %d of %d", step, totalSteps)
 		mgr.AddProgressBar(progressName, percentage, status)
 
-		// Update main message occasionally
+		// Track specific checkpoints in our table
+		elapsed := time.Since(startTime).Round(100 * time.Millisecond)
+
+		// Add checkpoint entries at 25%, 50%, 75% and 100%
 		if step == totalSteps/4 {
+			checkpointTimes[0] = time.Now()
+			metricsTable.AddRow([]string{"25%", elapsed.String(), "In Progress", fmt.Sprintf("%d KB", rand.Intn(1000)+500)})
 			mgr.SetMessage(progressName, "Progress reporter at 25%")
 		} else if step == totalSteps/2 {
+			checkpointTimes[1] = time.Now()
+			metricsTable.AddRow([]string{"50%", elapsed.String(), "In Progress", fmt.Sprintf("%d KB", rand.Intn(1000)+1500)})
 			mgr.SetMessage(progressName, "Progress reporter at 50%")
 		} else if step == totalSteps*3/4 {
+			checkpointTimes[2] = time.Now()
+			metricsTable.AddRow([]string{"75%", elapsed.String(), "In Progress", fmt.Sprintf("%d KB", rand.Intn(1000)+2500)})
 			mgr.SetMessage(progressName, "Progress reporter at 75%")
+		} else if step == totalSteps {
+			checkpointTimes[3] = time.Now()
+			metricsTable.AddRow([]string{"100%", elapsed.String(), "Complete", fmt.Sprintf("%d KB", rand.Intn(1000)+3500)})
 		}
 	}
+
+	// Add a summary row
+	totalElapsed := time.Since(startTime).Round(100 * time.Millisecond)
+	metricsTable.AddRow([]string{"Total", totalElapsed.String(), "Complete", "Complete"})
 
 	// Complete the task
 	mgr.SetMessage(progressName, "Progress reporter completed")
