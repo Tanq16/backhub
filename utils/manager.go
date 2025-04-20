@@ -2,51 +2,116 @@ package utils
 
 import (
 	"fmt"
+	"os"
 	"sort"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/lipgloss/table"
 )
 
-// Define style constants
+// Table represents a data table wrapper over lipgloss table
+type Table struct {
+	Headers []string
+	Rows    [][]string
+	table   *table.Table
+}
+
+// NewTable creates a new table with the given headers
+func NewTable(headers []string) *Table {
+	t := &Table{
+		Headers: headers,
+		Rows:    [][]string{},
+	}
+	t.table = table.New().Headers(headers...)
+	return t
+}
+
+// AddRow adds a row to the table
+func (t *Table) AddRow(row []string) {
+	t.Rows = append(t.Rows, row)
+	t.table.Row(row...)
+}
+
+// FormatLipglossTable formats the table using lipgloss styling
+func (t *Table) FormatLipglossTable(innerDividers bool) string {
+	return t.table.String()
+}
+
+// PrintTable prints the table to stdout
+func (t *Table) PrintTable(innerDividers bool) {
+	os.Stdout.WriteString(t.table.String())
+}
+
+// PrintMarkdownTable prints the markdown table to stdout
+func (t *Table) PrintMarkdownTable() {
+	mdTable := t.table.Border(lipgloss.MarkdownBorder())
+	os.Stdout.WriteString(mdTable.String())
+}
+
+// FormatMarkdownTable formats the table as a markdown table
+func (t *Table) FormatMarkdownTable() string {
+	return t.table.Border(lipgloss.MarkdownBorder()).String()
+}
+
+// WriteMarkdownTableToFile writes the markdown table to a file
+func (t *Table) WriteMarkdownTableToFile(outputPath string) error {
+	formatted := t.FormatMarkdownTable()
+	return os.WriteFile(outputPath, []byte(formatted), 0644)
+}
+
 var (
-	// Theme colors
-	successColor = lipgloss.Color("2")   // muted green
-	errorColor   = lipgloss.Color("9")   // red
-	warningColor = lipgloss.Color("11")  // yellow
-	pendingColor = lipgloss.Color("12")  // blue
-	infoColor    = lipgloss.Color("14")  // cyan
-	streamColor  = lipgloss.Color("245") // gray
-	detailColor  = lipgloss.Color("13")  // magenta
-	timeColor    = lipgloss.Color("246") // light gray
-	headerColor  = lipgloss.Color("69")  // blue/purple for function headers
-	tableBorder  = lipgloss.Color("245") // table border color
-	tableHeader  = lipgloss.Color("255") // white for table headers
-
-	// Basic styles
-	successStyle = lipgloss.NewStyle().Foreground(successColor)
-	errorStyle   = lipgloss.NewStyle().Foreground(errorColor)
-	warningStyle = lipgloss.NewStyle().Foreground(warningColor)
-	pendingStyle = lipgloss.NewStyle().Foreground(pendingColor)
-	infoStyle    = lipgloss.NewStyle().Foreground(infoColor)
-	streamStyle  = lipgloss.NewStyle().Foreground(streamColor)
-	detailStyle  = lipgloss.NewStyle().Foreground(detailColor)
-	timeStyle    = lipgloss.NewStyle().Foreground(StyleColors["lightGrey"])
-
-	// Status indicators
-	successMark = successStyle.Render("✓")
-	errorMark   = errorStyle.Render("✗")
-	warningMark = warningStyle.Render("!")
-	pendingMark = pendingStyle.Render("○")
-
-	// Header style
-	headerStyle = lipgloss.NewStyle().Bold(true).Foreground(headerColor)
-
-	// Initial padding for all lines
+	successStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("2"))             // muted green
+	errorStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("9"))             // red
+	warningStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("11"))            // yellow
+	pendingStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("12"))            // blue
+	infoStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("14"))            // cyan
+	debugStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("250"))           // light grey
+	detailStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("13"))            // purple
+	streamStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("240"))           // grey
+	headerStyle  = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("69")) // purple
+	// More styles
+	// whiteStyle      = lipgloss.NewStyle().Foreground(lipgloss.Color("255")) // white
+	// darkRedStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("124")) // dark red
+	// darkGreenStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("28"))  // dark green
+	// darkYellowStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("142")) // dark yellow
+	// darkBlueStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("19"))  // dark blue
+	// darkCyanStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("31"))  // dark cyan
+	// orangeStyle     = lipgloss.NewStyle().Foreground(lipgloss.Color("208")) // orange
+	// pinkStyle       = lipgloss.NewStyle().Foreground(lipgloss.Color("200")) // pink
+	// tealStyle       = lipgloss.NewStyle().Foreground(lipgloss.Color("37"))  // teal
+	// More variables
 	basePadding = 2
 )
+
+var StyleSymbols = map[string]string{
+	"pass":    "✓",
+	"fail":    "✗",
+	"warning": "!",
+	"pending": "○",
+	"info":    "ℹ",
+	"arrow":   "→",
+	"bullet":  "•",
+	"dot":     "·",
+}
+
+func PrintProgress(current, total int, width int) string {
+	if width <= 0 {
+		width = 30
+	}
+	percent := float64(current) / float64(total)
+	filled := min(int(percent*float64(width)), width)
+	bar := "["
+	bar += strings.Repeat("=", filled)
+	if filled < width {
+		bar += ">"
+		bar += strings.Repeat(" ", width-filled-1)
+	}
+	bar += "]"
+	return debugStyle.Render(fmt.Sprintf("%s %.1f%% - ", bar, percent*100))
+}
 
 // FunctionOutput represents the output of a specific function
 type FunctionOutput struct {
@@ -82,8 +147,10 @@ type Manager struct {
 	doneCh          chan struct{}     // Channel to signal stopping the display
 	pauseCh         chan bool         // Channel to pause/resume display updates
 	isPaused        bool
-	displayTick     time.Duration // Interval between display updates
-	functionCount   int           // Counter for function index
+	displayTick     time.Duration  // Interval between display updates
+	functionCount   int            // Counter for function index
+	displayWg       sync.WaitGroup // WaitGroup to coordinate display goroutine shutdown
+	tablesDisplayed bool           // Flag to track if tables have been displayed
 }
 
 // NewManager creates a new output manager
@@ -103,6 +170,7 @@ func NewManager(maxStreams int) *Manager {
 		isPaused:        false,
 		displayTick:     200 * time.Millisecond, // 200ms default update interval
 		functionCount:   0,
+		tablesDisplayed: false,
 	}
 }
 
@@ -251,20 +319,12 @@ func (m *Manager) AddProgressBar(name string, percentage float64, text string) {
 			percentage = 100
 		}
 
-		// Determine color based on progress
-		// colorName := "blue"
-		// if percentage < 30 {
-		// 	colorName = "yellow"
-		// } else if percentage >= 80 {
-		// 	colorName = "green"
-		// }
-
 		// Generate the progress bar using the existing utility function
 		progressBar := PrintProgress(int(percentage), 100, 30)
 
 		// Add text if provided
 		display := progressBar
-		display += Colorize(text, "lightGrey")
+		display += debugStyle.Render(text)
 
 		// Set this as the only stream line, replacing any existing lines
 		info.StreamLines = []string{display}
@@ -316,7 +376,18 @@ func (m *Manager) ClearAll() {
 
 // GetStatusDisplay returns a styled status indicator based on status
 func (m *Manager) GetStatusDisplay(status string) string {
-	return FormatStatusSymbol(status)
+	switch status {
+	case "success", "pass":
+		return successStyle.Render(StyleSymbols["pass"])
+	case "error", "fail":
+		return errorStyle.Render(StyleSymbols["fail"])
+	case "warning":
+		return warningStyle.Render(StyleSymbols["warning"])
+	case "pending":
+		return pendingStyle.Render(StyleSymbols["pending"])
+	default:
+		return infoStyle.Render(StyleSymbols["bullet"])
+	}
 }
 
 // RegisterTable adds a table to the manager
@@ -456,7 +527,7 @@ func (m *Manager) updateDisplay() {
 		fmt.Printf("%s%s %s %s\n",
 			functionPrefix,
 			statusDisplay,
-			timeStyle.Render(elapsedStr),
+			debugStyle.Render(elapsedStr),
 			styledMessage)
 		lineCount++
 
@@ -524,7 +595,7 @@ func (m *Manager) updateDisplay() {
 		fmt.Printf("%s%s %s %s\n",
 			functionPrefix,
 			statusDisplay,
-			timeStyle.Render(timeStr),
+			debugStyle.Render(timeStr),
 			styledMessage)
 		lineCount++
 
@@ -542,7 +613,9 @@ func (m *Manager) updateDisplay() {
 
 // StartDisplay starts the automatic display update goroutine
 func (m *Manager) StartDisplay() {
+	m.displayWg.Add(1)
 	go func() {
+		defer m.displayWg.Done()
 		ticker := time.NewTicker(m.displayTick)
 		defer ticker.Stop()
 		for {
@@ -557,6 +630,7 @@ func (m *Manager) StartDisplay() {
 				if !m.unlimitedOutput {
 					m.ClearAll()
 				}
+				// Display final output
 				m.displayTables()
 				m.ShowSummary()
 				return
@@ -565,9 +639,10 @@ func (m *Manager) StartDisplay() {
 	}()
 }
 
-// StopDisplay stops the automatic display updates
+// StopDisplay stops the automatic display updates and waits for completion
 func (m *Manager) StopDisplay() {
-	close(m.doneCh)
+	close(m.doneCh)    // Signal the goroutine to stop
+	m.displayWg.Wait() // Wait for goroutine to finish
 }
 
 // SetUpdateInterval sets the interval between display updates
@@ -577,6 +652,10 @@ func (m *Manager) SetUpdateInterval(interval time.Duration) {
 
 // displayTables displays all tables at the end
 func (m *Manager) displayTables() {
+	m.mutex.Lock()
+	m.tablesDisplayed = true
+	m.mutex.Unlock()
+
 	m.mutex.RLock()
 	defer m.mutex.RUnlock()
 
@@ -627,7 +706,7 @@ func (m *Manager) displayErrors() {
 		fmt.Printf("%s%s %s %s\n",
 			strings.Repeat(" ", basePadding+2),
 			errorStyle.Render(fmt.Sprintf("%d.", i+1)),
-			timeStyle.Render(fmt.Sprintf("[%s]", err.Time.Format("15:04:05"))),
+			debugStyle.Render(fmt.Sprintf("[%s]", err.Time.Format("15:04:05"))),
 			errorStyle.Render(fmt.Sprintf("Function: %s", err.FunctionName)))
 
 		fmt.Printf("%s%s\n",
@@ -638,6 +717,14 @@ func (m *Manager) displayErrors() {
 
 // ShowSummary displays a final summary of all functions
 func (m *Manager) ShowSummary() {
+	m.mutex.RLock()
+	alreadyDisplayedTables := m.tablesDisplayed
+	m.mutex.RUnlock()
+
+	m.mutex.Lock()
+	m.tablesDisplayed = true
+	m.mutex.Unlock()
+
 	m.mutex.RLock()
 	defer m.mutex.RUnlock()
 
@@ -657,10 +744,7 @@ func (m *Manager) ShowSummary() {
 	}
 
 	// Create a style for the summary
-	summaryStyle := lipgloss.NewStyle().
-		Bold(true).
-		Foreground(infoColor).
-		Padding(0, basePadding)
+	summaryStyle := infoStyle.Padding(0, basePadding)
 
 	// Format statistics with colors
 	totalOps := fmt.Sprintf("Total Operations: %d", len(m.outputs))
@@ -670,10 +754,11 @@ func (m *Manager) ShowSummary() {
 	// Print the summary
 	fmt.Println(summaryStyle.Render(fmt.Sprintf("%s, %s, %s", totalOps, succeeded, failed)))
 
-	fmt.Println("\nHEREHERE\nHEREHERE\nHEREHERE\nHEREHERE")
+	// Don't display tables if they've already been displayed by the display goroutine
+	if !alreadyDisplayedTables {
+		m.displayTables()
+	}
 
-	// Print all tables
-	m.displayTables()
 	if m.unlimitedOutput {
 		m.displayErrors()
 	}
