@@ -6,6 +6,7 @@ require (
 	github.com/go-git/go-git/v5 v5.13.1
 	github.com/rs/zerolog v1.33.0
 	github.com/spf13/cobra v1.8.1
+	golang.org/x/term v0.27.0
 	gopkg.in/yaml.v3 v3.0.1
 )
 

@@ -36,7 +36,7 @@ jobs:
             NEW_VERSION="v$((MAJOR + 1)).0"
           elif git log -1 --pretty=%B | grep -i "minor bump"; then
             NEW_VERSION="v$MAJOR.$((MINOR + 1)).0"
-          elif git log -1 --pretty=%B | grep -i "patch"; then
+          elif git log -1 --pretty=%B | grep -i "patch bump"; then
             NEW_VERSION="v$MAJOR.$MINOR.$((PATCH + 1))"
           else
             NEW_VERSION="v$MAJOR.$MINOR.$((PATCH + 1))"
