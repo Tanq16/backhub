@@ -1,4 +1,4 @@
-package output
+package utils
 
 import (
 	"fmt"
@@ -19,13 +19,16 @@ type FunctionOutput struct {
 
 // Output manager
 type Manager struct {
-	outputs     map[string]*FunctionOutput
-	mutex       sync.RWMutex
-	numLines    int
-	maxStreams  int               // Max stream lines per function
-	tables      map[string]*Table // Tables that can be displayed
-	doneCh      chan struct{}     // Channel to signal stopping the display
-	displayTick time.Duration     // Interval between display updates
+	outputs         map[string]*FunctionOutput
+	mutex           sync.RWMutex
+	numLines        int
+	maxStreams      int               // Max stream lines per function
+	unlimitedOutput bool              // When true, unlimited output per function
+	tables          map[string]*Table // Tables that can be displayed
+	doneCh          chan struct{}     // Channel to signal stopping the display
+	pauseCh         chan bool         // Channel to pause/resume display updates
+	isPaused        bool
+	displayTick     time.Duration // Interval between display updates
 }
 
 // Creates a new output manager
@@ -34,11 +37,37 @@ func NewManager(maxStreams int) *Manager {
 		maxStreams = 5 // Default value
 	}
 	return &Manager{
-		outputs:     make(map[string]*FunctionOutput),
-		tables:      make(map[string]*Table),
-		maxStreams:  maxStreams,
-		doneCh:      make(chan struct{}),
-		displayTick: 200 * time.Millisecond, // 200ms default update interval
+		outputs:         make(map[string]*FunctionOutput),
+		tables:          make(map[string]*Table),
+		maxStreams:      maxStreams,
+		unlimitedOutput: false,
+		doneCh:          make(chan struct{}),
+		pauseCh:         make(chan bool),
+		isPaused:        false,
+		displayTick:     200 * time.Millisecond, // 200ms default update interval
+	}
+}
+
+// Set whether output should be unlimited
+func (m *Manager) SetUnlimitedOutput(unlimited bool) {
+	m.mutex.Lock()
+	defer m.mutex.Unlock()
+	m.unlimitedOutput = unlimited
+}
+
+// Pause the display updates
+func (m *Manager) Pause() {
+	if !m.isPaused {
+		m.pauseCh <- true
+		m.isPaused = true
+	}
+}
+
+// Resume the display updates
+func (m *Manager) Resume() {
+	if m.isPaused {
+		m.pauseCh <- false
+		m.isPaused = false
 	}
 }
 
@@ -113,20 +142,23 @@ func (m *Manager) UpdateStreamOutput(name string, output []string) {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
 	if info, exists := m.outputs[name]; exists {
-		currentLen := len(info.StreamLines)
-		if currentLen+len(output) > m.maxStreams {
-			// Keep only the most recent lines up to maxStreams
-			startIndex := currentLen + len(output) - m.maxStreams
-			if startIndex > currentLen {
-				startIndex = 0
-			}
-			newLines := append(info.StreamLines[startIndex:], output...)
-			if len(newLines) > m.maxStreams {
-				newLines = newLines[len(newLines)-m.maxStreams:]
-			}
-			info.StreamLines = newLines
-		} else {
+		if m.unlimitedOutput { // just append
 			info.StreamLines = append(info.StreamLines, output...)
+		} else { // enforce size limit
+			currentLen := len(info.StreamLines)
+			if currentLen+len(output) > m.maxStreams {
+				startIndex := currentLen + len(output) - m.maxStreams
+				if startIndex > currentLen {
+					startIndex = 0
+				}
+				newLines := append(info.StreamLines[startIndex:], output...)
+				if len(newLines) > m.maxStreams {
+					newLines = newLines[len(newLines)-m.maxStreams:]
+				}
+				info.StreamLines = newLines
+			} else {
+				info.StreamLines = append(info.StreamLines, output...)
+			}
 		}
 		info.LastUpdated = time.Now()
 	}
@@ -310,7 +342,11 @@ func (m *Manager) StartDisplay() {
 		for {
 			select {
 			case <-ticker.C:
-				m.updateDisplay()
+				if !m.isPaused {
+					m.updateDisplay()
+				}
+			case pauseState := <-m.pauseCh:
+				m.isPaused = pauseState
 			case <-m.doneCh:
 				m.updateDisplay()
 				return
@@ -333,8 +369,12 @@ func (m *Manager) SetUpdateInterval(interval time.Duration) {
 func (m *Manager) ShowSummary() {
 	m.mutex.RLock()
 	defer m.mutex.RUnlock()
-	m.updateDisplay()
-	fmt.Println()
+	// Only clear the screen if unlimited output is not enabled
+	if !m.unlimitedOutput {
+		m.updateDisplay()
+	} else {
+		fmt.Println("\n--- Summary ---")
+	}
 
 	// Count success and failures
 	var success, failures int
@@ -378,6 +418,6 @@ func (m *Manager) RemoveCompleted() {
 }
 
 // Shows outputs of all current functions (for a manual update)
-func (m *Manager) Display() {
-	m.updateDisplay()
-}
+// func (m *Manager) Display() {
+// 	m.updateDisplay()
+// }
