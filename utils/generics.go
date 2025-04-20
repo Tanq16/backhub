@@ -49,20 +49,6 @@ var Colors = map[string]string{
 	"fail":           "✗",
 }
 
-var boxChars = map[string]string{
-	"topLeft":     "╭",
-	"topRight":    "╮",
-	"bottomLeft":  "╰",
-	"bottomRight": "╯",
-	"horizontal":  "─",
-	"vertical":    "│",
-	"leftT":       "├",
-	"rightT":      "┤",
-	"topT":        "┬",
-	"bottomT":     "┴",
-	"cross":       "┼",
-}
-
 // Formatting messages
 func SuccessMessage(msg string) string {
 	return fmt.Sprintf("%s%s%s", Colors["green"], msg, Colors["reset"])

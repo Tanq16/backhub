@@ -9,6 +9,20 @@ import (
 	"golang.org/x/term"
 )
 
+var boxChars = map[string]string{
+	"topLeft":     "╭",
+	"topRight":    "╮",
+	"bottomLeft":  "╰",
+	"bottomRight": "╯",
+	"horizontal":  "─",
+	"vertical":    "│",
+	"leftT":       "├",
+	"rightT":      "┤",
+	"topT":        "┬",
+	"bottomT":     "┴",
+	"cross":       "┼",
+}
+
 type Table struct {
 	Headers []string
 	Rows    [][]string
