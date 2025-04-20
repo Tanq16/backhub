@@ -120,6 +120,7 @@ func (m *Manager) Complete(name string) {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
 	if info, exists := m.outputs[name]; exists {
+		info.StreamLines = []string{}
 		info.Complete = true
 		info.Status = "success"
 		info.LastUpdated = time.Now()
@@ -383,7 +384,7 @@ func (m *Manager) ShowSummary() {
 	m.mutex.RLock()
 	defer m.mutex.RUnlock()
 	if !m.unlimitedOutput {
-		m.ClearLines(m.numLines)
+		m.ClearAll()
 	} else {
 		fmt.Println("\n--- Summary ---")
 	}
