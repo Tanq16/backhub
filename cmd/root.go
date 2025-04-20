@@ -9,6 +9,7 @@ import (
 )
 
 var BackHubVersion = "dev"
+var unlimitedOutput bool
 
 var rootCmd = &cobra.Command{
 	Use:     "backhub",
@@ -19,12 +20,16 @@ var rootCmd = &cobra.Command{
 		configPath := args[0]
 		token := os.Getenv("GH_TOKEN")
 		handler := functionality.NewHandler(token)
-		err := handler.RunBackup(configPath)
+		err := handler.RunBackup(configPath, unlimitedOutput)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error: %s\n", err)
 			os.Exit(1)
 		}
 	},
+}
+
+func init() {
+	rootCmd.Flags().BoolVar(&unlimitedOutput, "debug", false, "Disable output size limit")
 }
 
 func Execute() {

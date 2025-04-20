@@ -265,7 +265,7 @@ func (m *Manager) RemoveTable(name string) {
 func (m *Manager) updateDisplay() {
 	m.mutex.RLock()
 	defer m.mutex.RUnlock()
-	if m.numLines > 0 {
+	if m.numLines > 0 && !m.unlimitedOutput {
 		fmt.Printf("\033[%dA\033[J", m.numLines)
 	}
 	lineCount := 0

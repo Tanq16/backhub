@@ -116,8 +116,9 @@ func (h *Handler) ExecuteBackup() error {
 }
 
 // Entry point to run the backup process
-func (h *Handler) RunBackup(configPath string) error {
+func (h *Handler) RunBackup(configPath string, unlimitedOutput bool) error {
 	h.Setup()
+	h.outputMgr.SetUnlimitedOutput(unlimitedOutput)
 	if err := h.ValidateToken(); err != nil {
 		return err
 	}
