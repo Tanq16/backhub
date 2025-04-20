@@ -52,6 +52,10 @@ func main() {
 	totalBytes := 0
 	totalFiles := 0
 
+	// Add our progress reporter
+	wg.Add(1)
+	go runProgressReporter(outputMgr, &wg)
+
 	for i, repo := range repos {
 		wg.Add(1)
 		// Start each repository processing in its own goroutine
@@ -122,7 +126,6 @@ func main() {
 			}
 
 			// Complete with success or error
-			// elapsed := time.Since(startTime).Round(100 * time.Millisecond)
 			if repo.ShouldSucceed {
 				outputMgr.SetMessage(taskName, fmt.Sprintf("Successfully processed %s", repo.Name))
 				outputMgr.Complete(taskName)
@@ -138,7 +141,7 @@ func main() {
 	}
 
 	// Update coordinator status
-	outputMgr.SetMessage("coordinator", "Processing 5 repositories...")
+	outputMgr.SetMessage("coordinator", "Processing 5 repositories and running progress demo...")
 
 	// Wait for all processing to complete
 	wg.Wait()
@@ -170,4 +173,43 @@ func getRandomProgressMessage() string {
 		"Verifying connectivity",
 	}
 	return messages[rand.Intn(len(messages))]
+}
+
+// runProgressReporter simulates a task with a progress bar
+func runProgressReporter(mgr *utils.Manager, wg *sync.WaitGroup) {
+	defer wg.Done()
+
+	progressName := "progress-reporter"
+	mgr.Register(progressName)
+	mgr.SetMessage(progressName, "Running task with progress reporting")
+
+	// Total steps for our task
+	totalSteps := 20
+
+	// Simulate work with progress updates
+	for step := 1; step <= totalSteps; step++ {
+		// Calculate percentage
+		percentage := float64(step) / float64(totalSteps) * 100
+
+		// Sleep to simulate work
+		sleepTime := 200 + rand.Intn(300)
+		time.Sleep(time.Duration(sleepTime) * time.Millisecond)
+
+		// Add progress message
+		status := fmt.Sprintf("Step %d of %d", step, totalSteps)
+		mgr.AddProgressBar(progressName, percentage, status)
+
+		// Update main message occasionally
+		if step == totalSteps/4 {
+			mgr.SetMessage(progressName, "Progress reporter at 25%")
+		} else if step == totalSteps/2 {
+			mgr.SetMessage(progressName, "Progress reporter at 50%")
+		} else if step == totalSteps*3/4 {
+			mgr.SetMessage(progressName, "Progress reporter at 75%")
+		}
+	}
+
+	// Complete the task
+	mgr.SetMessage(progressName, "Progress reporter completed")
+	mgr.Complete(progressName)
 }

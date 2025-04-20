@@ -33,7 +33,7 @@ var (
 	infoStyle    = lipgloss.NewStyle().Foreground(infoColor)
 	streamStyle  = lipgloss.NewStyle().Foreground(streamColor)
 	detailStyle  = lipgloss.NewStyle().Foreground(detailColor)
-	timeStyle    = lipgloss.NewStyle().Foreground(timeColor)
+	timeStyle    = lipgloss.NewStyle().Foreground(StyleColors["lightGrey"])
 
 	// Status indicators
 	successMark = successStyle.Render("✓")
@@ -236,6 +236,42 @@ func (m *Manager) UpdateStreamOutput(name string, output []string) {
 	}
 }
 
+// AddProgressBar sets a progress bar as the stream content
+// percentage: value between 0 and 100
+// text: additional text to show after the progress bar
+func (m *Manager) AddProgressBar(name string, percentage float64, text string) {
+	m.mutex.Lock()
+	defer m.mutex.Unlock()
+
+	if info, exists := m.outputs[name]; exists {
+		// Clamp percentage between 0 and 100
+		if percentage < 0 {
+			percentage = 0
+		} else if percentage > 100 {
+			percentage = 100
+		}
+
+		// Determine color based on progress
+		// colorName := "blue"
+		// if percentage < 30 {
+		// 	colorName = "yellow"
+		// } else if percentage >= 80 {
+		// 	colorName = "green"
+		// }
+
+		// Generate the progress bar using the existing utility function
+		progressBar := PrintProgress(int(percentage), 100, 30)
+
+		// Add text if provided
+		display := progressBar
+		display += Colorize(text, "lightGrey")
+
+		// Set this as the only stream line, replacing any existing lines
+		info.StreamLines = []string{display}
+		info.LastUpdated = time.Now()
+	}
+}
+
 // AddStreamLine adds a single line to a function's stream output
 func (m *Manager) AddStreamLine(name, line string) {
 	m.UpdateStreamOutput(name, []string{line})
@@ -280,18 +316,7 @@ func (m *Manager) ClearAll() {
 
 // GetStatusDisplay returns a styled status indicator based on status
 func (m *Manager) GetStatusDisplay(status string) string {
-	switch status {
-	case "success":
-		return successMark
-	case "error":
-		return errorMark
-	case "warning":
-		return warningMark
-	case "pending":
-		return pendingMark
-	default:
-		return pendingMark
-	}
+	return FormatStatusSymbol(status)
 }
 
 // RegisterTable adds a table to the manager
@@ -476,7 +501,7 @@ func (m *Manager) updateDisplay() {
 
 		// Calculate total time
 		totalTime := info.LastUpdated.Sub(info.StartTime).Round(time.Millisecond)
-		timeStr := fmt.Sprintf("[completed in %s]", totalTime)
+		timeStr := fmt.Sprintf("[%s]", totalTime)
 
 		// Style based on status
 		prefixStyle := successStyle

@@ -140,18 +140,12 @@ func FormatTitle(title string, width int, color string) string {
 }
 
 // PrintProgress creates a progress bar with the given percentage
-func PrintProgress(current, total int, width int, color string) string {
+func PrintProgress(current, total int, width int) string {
 	if width <= 0 {
 		width = 30
 	}
 
-	colorValue, exists := StyleColors[color]
-	if !exists {
-		colorValue = StyleColors["blue"]
-	}
-
-	style := lipgloss.NewStyle().
-		Foreground(colorValue)
+	style := lipgloss.NewStyle().Foreground(StyleColors["lightGrey"])
 
 	percent := float64(current) / float64(total)
 	filled := min(int(percent*float64(width)), width)
@@ -164,7 +158,7 @@ func PrintProgress(current, total int, width int, color string) string {
 	}
 	bar += "]"
 
-	return style.Render(fmt.Sprintf("%s %.1f%%", bar, percent*100))
+	return style.Render(fmt.Sprintf("%s %.1f%% - ", bar, percent*100))
 }
 
 // SliceSame checks if two slices contain the same elements (order-insensitive)
