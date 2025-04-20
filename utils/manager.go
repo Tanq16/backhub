@@ -2,6 +2,7 @@ package utils
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -286,6 +287,9 @@ func (m *Manager) updateDisplay() {
 			activeKeys = append(activeKeys, k)
 		}
 	}
+	sort.Strings(activeKeys)
+	sort.Strings(completedKeys)
+	sort.Strings(pendingKeys)
 
 	// Print active functions
 	for _, name := range activeKeys {

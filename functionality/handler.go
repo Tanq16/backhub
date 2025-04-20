@@ -97,12 +97,11 @@ func (h *Handler) ExecuteBackup() error {
 			for repo := range toProcess {
 				taskName := fmt.Sprintf("repo-%s", repo)
 				h.outputMgr.Register(taskName)
-				h.outputMgr.SetMessage(taskName, fmt.Sprintf("Processing repository %s", repo))
-
+				h.outputMgr.SetMessage(taskName, fmt.Sprintf("Processing %s", repo))
 				if err := h.backupRepo(repo, taskName); err != nil {
 					h.outputMgr.ReportError(taskName, err)
 				} else {
-					h.outputMgr.SetMessage(taskName, fmt.Sprintf("Repository %s backed up successfully", repo))
+					h.outputMgr.SetMessage(taskName, fmt.Sprintf("%s backed up successfully", repo))
 					h.outputMgr.Complete(taskName)
 				}
 			}
