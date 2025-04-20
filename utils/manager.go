@@ -35,35 +35,33 @@ func (t *Table) AddRow(row []string) {
 	t.table.Row(row...)
 }
 
-// FormatLipglossTable formats the table using lipgloss styling
-func (t *Table) FormatLipglossTable(innerDividers bool) string {
+// FormatTable formats the table using specified border style (plain or markdown)
+func (t *Table) FormatTable(useMarkdown bool) string {
+	if useMarkdown {
+		return t.table.Border(lipgloss.MarkdownBorder()).String()
+	}
 	return t.table.String()
 }
 
-// PrintTable prints the table to stdout
-func (t *Table) PrintTable(innerDividers bool) {
-	os.Stdout.WriteString(t.table.String())
+// PrintTable prints the table to stdout with optional markdown formatting
+func (t *Table) PrintTable(useMarkdown bool) {
+	os.Stdout.WriteString(t.FormatTable(useMarkdown))
 }
 
 // PrintMarkdownTable prints the markdown table to stdout
 func (t *Table) PrintMarkdownTable() {
-	mdTable := t.table.Border(lipgloss.MarkdownBorder())
-	os.Stdout.WriteString(mdTable.String())
-}
-
-// FormatMarkdownTable formats the table as a markdown table
-func (t *Table) FormatMarkdownTable() string {
-	return t.table.Border(lipgloss.MarkdownBorder()).String()
+	t.PrintTable(true)
 }
 
 // WriteMarkdownTableToFile writes the markdown table to a file
 func (t *Table) WriteMarkdownTableToFile(outputPath string) error {
-	formatted := t.FormatMarkdownTable()
-	return os.WriteFile(outputPath, []byte(formatted), 0644)
+	return os.WriteFile(outputPath, []byte(t.FormatTable(true)), 0644)
 }
 
+// Style definitions
 var (
-	successStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("2"))             // muted green
+	// Core styles
+	successStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("2"))             // green
 	errorStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("9"))             // red
 	warningStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("11"))            // yellow
 	pendingStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("12"))            // blue
@@ -72,20 +70,12 @@ var (
 	detailStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("13"))            // purple
 	streamStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("240"))           // grey
 	headerStyle  = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("69")) // purple
-	// More styles
-	// whiteStyle      = lipgloss.NewStyle().Foreground(lipgloss.Color("255")) // white
-	// darkRedStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("124")) // dark red
-	// darkGreenStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("28"))  // dark green
-	// darkYellowStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("142")) // dark yellow
-	// darkBlueStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("19"))  // dark blue
-	// darkCyanStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("31"))  // dark cyan
-	// orangeStyle     = lipgloss.NewStyle().Foreground(lipgloss.Color("208")) // orange
-	// pinkStyle       = lipgloss.NewStyle().Foreground(lipgloss.Color("200")) // pink
-	// tealStyle       = lipgloss.NewStyle().Foreground(lipgloss.Color("37"))  // teal
-	// More variables
+
+	// Additional config
 	basePadding = 2
 )
 
+// StyleSymbols maps status types to their display symbols
 var StyleSymbols = map[string]string{
 	"pass":    "✓",
 	"fail":    "✗",
@@ -97,12 +87,14 @@ var StyleSymbols = map[string]string{
 	"dot":     "·",
 }
 
+// PrintProgress generates a progress bar string
 func PrintProgress(current, total int, width int) string {
 	if width <= 0 {
 		width = 30
 	}
 	percent := float64(current) / float64(total)
 	filled := min(int(percent*float64(width)), width)
+
 	bar := "["
 	bar += strings.Repeat("=", filled)
 	if filled < width {
@@ -110,6 +102,7 @@ func PrintProgress(current, total int, width int) string {
 		bar += strings.Repeat(" ", width-filled-1)
 	}
 	bar += "]"
+
 	return debugStyle.Render(fmt.Sprintf("%s %.1f%% - ", bar, percent*100))
 }
 
@@ -134,7 +127,7 @@ type ErrorReport struct {
 	Time         time.Time
 }
 
-// OutputManager handles all terminal output management
+// Manager handles all terminal output management
 type Manager struct {
 	outputs         map[string]*FunctionOutput
 	mutex           sync.RWMutex
@@ -142,7 +135,6 @@ type Manager struct {
 	maxStreams      int               // Max stream lines per function
 	unlimitedOutput bool              // When true, unlimited output per function
 	tables          map[string]*Table // Global tables that can be displayed
-	functionTables  []Table           // Tables for functions to be displayed at the end
 	errors          []ErrorReport     // Collection of errors for debug output
 	doneCh          chan struct{}     // Channel to signal stopping the display
 	pauseCh         chan bool         // Channel to pause/resume display updates
@@ -156,12 +148,11 @@ type Manager struct {
 // NewManager creates a new output manager
 func NewManager(maxStreams int) *Manager {
 	if maxStreams <= 0 {
-		maxStreams = 15 // Default value - updated to 15 as requested
+		maxStreams = 15 // Default value
 	}
 	return &Manager{
 		outputs:         make(map[string]*FunctionOutput),
 		tables:          make(map[string]*Table),
-		functionTables:  []Table{},
 		errors:          []ErrorReport{},
 		maxStreams:      maxStreams,
 		unlimitedOutput: false,
@@ -305,26 +296,19 @@ func (m *Manager) UpdateStreamOutput(name string, output []string) {
 }
 
 // AddProgressBar sets a progress bar as the stream content
-// percentage: value between 0 and 100
-// text: additional text to show after the progress bar
 func (m *Manager) AddProgressBar(name string, percentage float64, text string) {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
 
 	if info, exists := m.outputs[name]; exists {
 		// Clamp percentage between 0 and 100
-		if percentage < 0 {
-			percentage = 0
-		} else if percentage > 100 {
-			percentage = 100
-		}
+		percentage = max(0, min(percentage, 100))
 
-		// Generate the progress bar using the existing utility function
+		// Generate the progress bar
 		progressBar := PrintProgress(int(percentage), 100, 30)
 
 		// Add text if provided
-		display := progressBar
-		display += debugStyle.Render(text)
+		display := progressBar + debugStyle.Render(text)
 
 		// Set this as the only stream line, replacing any existing lines
 		info.StreamLines = []string{display}
@@ -423,22 +407,20 @@ func (m *Manager) GetFunctionTable(funcName string, tableName string) *Table {
 	m.mutex.RLock()
 	defer m.mutex.RUnlock()
 	if info, exists := m.outputs[funcName]; exists {
-		if table, tableExists := info.Tables[tableName]; tableExists {
-			return table
-		}
+		return info.Tables[tableName]
 	}
 	return nil
 }
 
 // DisplayTable displays a specific table
-func (m *Manager) DisplayTable(name string, innerDividers bool) {
+func (m *Manager) DisplayTable(name string, useMarkdown bool) {
 	m.mutex.RLock()
 	defer m.mutex.RUnlock()
 	if table, exists := m.tables[name]; exists {
 		if m.numLines > 0 {
 			fmt.Printf("\033[%dA\033[J", m.numLines)
 		}
-		tableStr := table.FormatLipglossTable(innerDividers)
+		tableStr := table.FormatTable(useMarkdown)
 		fmt.Print(tableStr)
 		m.numLines = strings.Count(tableStr, "\n")
 	}
@@ -451,48 +433,68 @@ func (m *Manager) RemoveTable(name string) {
 	delete(m.tables, name)
 }
 
-// updateDisplay updates the console display with all function outputs
-func (m *Manager) updateDisplay() {
-	m.mutex.RLock()
-	defer m.mutex.RUnlock()
-	if m.numLines > 0 && !m.unlimitedOutput {
-		fmt.Printf("\033[%dA\033[J", m.numLines)
-	}
-	lineCount := 0
-
-	// Sort functions by their registration order
-	type sortableFunc struct {
+// sortFunctions returns sorted functions based on their status
+func (m *Manager) sortFunctions() (active, pending, completed []struct {
+	name string
+	info *FunctionOutput
+}) {
+	var allFuncs []struct {
 		name  string
 		info  *FunctionOutput
 		index int
 	}
 
-	var funcs []sortableFunc
+	// Collect all functions
 	for name, info := range m.outputs {
-		funcs = append(funcs, sortableFunc{name, info, info.Index})
+		allFuncs = append(allFuncs, struct {
+			name  string
+			info  *FunctionOutput
+			index int
+		}{name, info, info.Index})
 	}
 
 	// Sort by index (registration order)
-	sort.Slice(funcs, func(i, j int) bool {
-		return funcs[i].index < funcs[j].index
+	sort.Slice(allFuncs, func(i, j int) bool {
+		return allFuncs[i].index < allFuncs[j].index
 	})
 
-	// Group functions: active, pending, completed
-	var activeFuncs []sortableFunc
-	var pendingFuncs []sortableFunc
-	var completedFuncs []sortableFunc
-
-	for _, f := range funcs {
+	// Group functions by status
+	for _, f := range allFuncs {
 		if f.info.Complete {
-			completedFuncs = append(completedFuncs, f)
+			completed = append(completed, struct {
+				name string
+				info *FunctionOutput
+			}{f.name, f.info})
 		} else if f.info.Status == "pending" && f.info.Message == "" {
-			pendingFuncs = append(pendingFuncs, f)
+			pending = append(pending, struct {
+				name string
+				info *FunctionOutput
+			}{f.name, f.info})
 		} else {
-			activeFuncs = append(activeFuncs, f)
+			active = append(active, struct {
+				name string
+				info *FunctionOutput
+			}{f.name, f.info})
 		}
 	}
 
-	// Print active functions
+	return active, pending, completed
+}
+
+// updateDisplay updates the console display with all function outputs
+func (m *Manager) updateDisplay() {
+	m.mutex.RLock()
+	defer m.mutex.RUnlock()
+
+	if m.numLines > 0 && !m.unlimitedOutput {
+		fmt.Printf("\033[%dA\033[J", m.numLines)
+	}
+	lineCount := 0
+
+	// Get sorted functions
+	activeFuncs, pendingFuncs, completedFuncs := m.sortFunctions()
+
+	// Display active functions
 	for idx, f := range activeFuncs {
 		info := f.info
 		statusDisplay := m.GetStatusDisplay(info.Status)
@@ -502,8 +504,8 @@ func (m *Manager) updateDisplay() {
 		elapsedStr := fmt.Sprintf("[%s]", elapsed)
 
 		// Style the message based on status
-		styledMessage := info.Message
-		prefixStyle := pendingStyle
+		var styledMessage string
+		var prefixStyle lipgloss.Style
 
 		switch info.Status {
 		case "success":
@@ -515,7 +517,7 @@ func (m *Manager) updateDisplay() {
 		case "warning":
 			styledMessage = warningStyle.Render(info.Message)
 			prefixStyle = warningStyle
-		case "pending":
+		default: // pending or other
 			styledMessage = pendingStyle.Render(info.Message)
 			prefixStyle = pendingStyle
 		}
@@ -541,7 +543,7 @@ func (m *Manager) updateDisplay() {
 		}
 	}
 
-	// Print pending functions
+	// Display pending functions
 	for idx, f := range pendingFuncs {
 		info := f.info
 		statusDisplay := m.GetStatusDisplay(info.Status)
@@ -565,7 +567,7 @@ func (m *Manager) updateDisplay() {
 		}
 	}
 
-	// Print completed functions
+	// Display completed functions
 	for idx, f := range completedFuncs {
 		info := f.info
 		statusDisplay := m.GetStatusDisplay(info.Status)
@@ -659,17 +661,16 @@ func (m *Manager) displayTables() {
 	m.mutex.RLock()
 	defer m.mutex.RUnlock()
 
-	// First display global tables
+	// Display global tables
 	if len(m.tables) > 0 {
 		fmt.Println(strings.Repeat(" ", basePadding) + headerStyle.Render("Global Tables:"))
 		for name, table := range m.tables {
 			fmt.Println(strings.Repeat(" ", basePadding+2) + headerStyle.Render(name))
-			tableStr := table.FormatLipglossTable(true)
-			fmt.Println(tableStr)
+			fmt.Println(table.FormatTable(false))
 		}
 	}
 
-	// Then display function tables
+	// Check for function tables
 	hasFunctionTables := false
 	for _, info := range m.outputs {
 		if len(info.Tables) > 0 {
@@ -678,6 +679,7 @@ func (m *Manager) displayTables() {
 		}
 	}
 
+	// Display function tables
 	if hasFunctionTables {
 		fmt.Println(strings.Repeat(" ", basePadding) + headerStyle.Render("Function Tables:"))
 		for _, info := range m.outputs {
@@ -685,8 +687,7 @@ func (m *Manager) displayTables() {
 				fmt.Println(strings.Repeat(" ", basePadding+2) + headerStyle.Render(info.Name))
 				for tableName, table := range info.Tables {
 					fmt.Println(strings.Repeat(" ", basePadding+4) + infoStyle.Render(tableName))
-					tableStr := table.FormatLipglossTable(true)
-					fmt.Println(tableStr)
+					fmt.Println(table.FormatTable(false))
 				}
 			}
 		}
@@ -731,20 +732,13 @@ func (m *Manager) ShowSummary() {
 	fmt.Println()
 
 	var success, failures int
-	totalTime := time.Duration(0)
 	for _, info := range m.outputs {
 		if info.Status == "success" {
 			success++
 		} else if info.Status == "error" {
 			failures++
 		}
-		if info.Complete {
-			totalTime += info.LastUpdated.Sub(info.StartTime)
-		}
 	}
-
-	// Create a style for the summary
-	summaryStyle := infoStyle.Padding(0, basePadding)
 
 	// Format statistics with colors
 	totalOps := fmt.Sprintf("Total Operations: %d", len(m.outputs))
@@ -752,9 +746,9 @@ func (m *Manager) ShowSummary() {
 	failed := fmt.Sprintf("Failed: %s", errorStyle.Render(fmt.Sprintf("%d", failures)))
 
 	// Print the summary
-	fmt.Println(summaryStyle.Render(fmt.Sprintf("%s, %s, %s", totalOps, succeeded, failed)))
+	fmt.Println(infoStyle.Padding(0, basePadding).Render(fmt.Sprintf("%s, %s, %s", totalOps, succeeded, failed)))
 
-	// Don't display tables if they've already been displayed by the display goroutine
+	// Don't display tables if they've already been displayed
 	if !alreadyDisplayedTables {
 		m.displayTables()
 	}
