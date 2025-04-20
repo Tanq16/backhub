@@ -212,15 +212,15 @@ func (m *Manager) ClearAll() {
 func (m *Manager) GetStatusDisplay(status string) string {
 	switch status {
 	case "success":
-		return fmt.Sprintf("%s[%s]%s", Colors["green"], Colors["pass"], Colors["reset"])
+		return fmt.Sprintf("%s[%s]", Colors["teal"], Colors["pass"])
 	case "error":
-		return fmt.Sprintf("%s[%s]%s", Colors["red"], Colors["fail"], Colors["reset"])
+		return fmt.Sprintf("%s[%s]", Colors["red"], Colors["fail"])
 	case "warning":
-		return fmt.Sprintf("%s[!]%s", Colors["yellow"], Colors["reset"])
+		return fmt.Sprintf("%s[!]", Colors["yellow"])
 	case "pending":
-		return fmt.Sprintf("%s[…]%s", Colors["blue"], Colors["reset"])
+		return fmt.Sprintf("%s[…]", Colors["blue"])
 	default:
-		return fmt.Sprintf("%s[·]%s", Colors["grey"], Colors["reset"])
+		return fmt.Sprintf("%s[·]", Colors["grey"])
 	}
 }
 
@@ -300,13 +300,13 @@ func (m *Manager) updateDisplay() {
 		elapsed := time.Since(info.StartTime).Round(time.Millisecond)
 		elapsedStr := ""
 		if elapsed > time.Second {
-			elapsedStr = fmt.Sprintf(" [%s]", elapsed)
+			elapsedStr = fmt.Sprintf("[%s]", elapsed)
 		}
-		fmt.Printf("%s %s%s: %s\n", statusDisplay, name, elapsedStr, info.Message)
+		fmt.Printf("%s %s: %s%s\n", statusDisplay, elapsedStr, info.Message, Colors["reset"])
 		lineCount++
 		if len(info.StreamLines) > 0 {
 			for _, line := range info.StreamLines {
-				fmt.Printf("\t%s→ %s%s\n", Colors["green"], line, Colors["reset"])
+				fmt.Printf("\t%s→ %s%s\n", Colors["grey"], line, Colors["reset"])
 				lineCount++
 			}
 		}
@@ -316,11 +316,11 @@ func (m *Manager) updateDisplay() {
 	for _, name := range pendingKeys {
 		info := m.outputs[name]
 		statusDisplay := m.GetStatusDisplay(info.Status)
-		fmt.Printf("%s %s: Waiting...\n", statusDisplay, name)
+		fmt.Printf("%s: Waiting...%s\n", statusDisplay, Colors["reset"])
 		lineCount++
 		if len(info.StreamLines) > 0 {
 			for _, line := range info.StreamLines {
-				fmt.Printf("\t%s→ %s%s\n", Colors["green"], line, Colors["reset"])
+				fmt.Printf("\t%s→ %s%s\n", Colors["grey"], line, Colors["reset"])
 				lineCount++
 			}
 		}
@@ -334,9 +334,9 @@ func (m *Manager) updateDisplay() {
 		totalTime := info.LastUpdated.Sub(info.StartTime).Round(time.Millisecond)
 		timeStr := ""
 		if totalTime > time.Millisecond {
-			timeStr = fmt.Sprintf(" [completed in %s]", totalTime)
+			timeStr = fmt.Sprintf("[completed in %s]", totalTime)
 		}
-		fmt.Printf("%s %s%s: %s\n", statusDisplay, name, timeStr, info.Message)
+		fmt.Printf("%s %s: %s%s\n", statusDisplay, timeStr, info.Message, Colors["reset"])
 		lineCount++
 		// if len(info.StreamLines) > 0 {
 		// 	for _, line := range info.StreamLines {
@@ -362,6 +362,9 @@ func (m *Manager) StartDisplay() {
 			case pauseState := <-m.pauseCh:
 				m.isPaused = pauseState
 			case <-m.doneCh:
+				if !m.unlimitedOutput {
+					m.ClearAll()
+				}
 				m.updateDisplay()
 				return
 			}
@@ -383,10 +386,9 @@ func (m *Manager) SetUpdateInterval(interval time.Duration) {
 func (m *Manager) ShowSummary() {
 	m.mutex.RLock()
 	defer m.mutex.RUnlock()
-	if !m.unlimitedOutput {
-		m.ClearAll()
-	} else {
-		fmt.Println("\n--- Summary ---")
+	m.updateDisplay()
+	if m.unlimitedOutput {
+		fmt.Println("--------------------")
 	}
 	var success, failures int
 	totalTime := time.Duration(0)
