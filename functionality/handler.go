@@ -54,7 +54,7 @@ func (p *gitProgressWriter) Write(data []byte) (int, error) {
 func NewHandler(token string) *Handler {
 	return &Handler{
 		token:       token,
-		outputMgr:   utils.NewManager(10),
+		outputMgr:   utils.NewManager(15),
 		concurrency: 5,
 		cloneFolder: ".",
 	}
