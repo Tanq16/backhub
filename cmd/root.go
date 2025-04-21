@@ -12,10 +12,17 @@ var BackHubVersion = "dev"
 var unlimitedOutput bool
 
 var rootCmd = &cobra.Command{
-	Use:     "backhub",
+	Use:     "backhub [config_file_or_repo]",
 	Short:   "GitHub repository backup tool using local mirrors",
 	Version: BackHubVersion,
-	Args:    cobra.ExactArgs(1),
+	Long: `BackHub is a simple GitHub repository backup tool that creates complete 
+local mirrors of your repositories. It can backup repositories defined in a YAML
+configuration file or directly specified as a command line argument.
+
+Examples:
+  backhub config.yaml                   # Backup repos from config file
+  backhub github.com/username/repo      # Backup a single repository`,
+	Args: cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		configPath := args[0]
 		token := os.Getenv("GH_TOKEN")
@@ -29,7 +36,7 @@ var rootCmd = &cobra.Command{
 }
 
 func init() {
-	rootCmd.Flags().BoolVar(&unlimitedOutput, "debug", false, "Disable output size limit")
+	rootCmd.Flags().BoolVar(&unlimitedOutput, "debug", false, "Show unlimited console output")
 }
 
 func Execute() {
