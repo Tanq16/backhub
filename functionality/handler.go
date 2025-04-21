@@ -4,7 +4,9 @@ import (
 	"fmt"
 	"os"
 	"regexp"
+	"strings"
 	"sync"
+	"time"
 
 	"github.com/tanq16/backhub/utils"
 	"gopkg.in/yaml.v3"
@@ -22,10 +24,37 @@ type Handler struct {
 	cloneFolder string
 }
 
+// Implements io.Writer to capture git operation progress
+type gitProgressWriter struct {
+	taskName    string
+	outputMgr   *utils.Manager
+	buffer      []string
+	lastUpdate  time.Time
+	minInterval time.Duration
+}
+
+// Implements io.Writer interface to capture git progress messages
+func (p *gitProgressWriter) Write(data []byte) (int, error) {
+	message := strings.TrimSpace(string(data))
+	if message == "" {
+		return len(data), nil
+	}
+	p.buffer = append(p.buffer, message)
+	if len(p.buffer) > 5 { // Keep the last 5 messages
+		p.buffer = p.buffer[len(p.buffer)-5:]
+	}
+	now := time.Now()
+	if now.Sub(p.lastUpdate) >= p.minInterval {
+		p.outputMgr.UpdateStreamOutput(p.taskName, p.buffer)
+		p.lastUpdate = now
+	}
+	return len(data), nil
+}
+
 func NewHandler(token string) *Handler {
 	return &Handler{
 		token:       token,
-		outputMgr:   utils.NewManager(15),
+		outputMgr:   utils.NewManager(10),
 		concurrency: 5,
 		cloneFolder: ".",
 	}

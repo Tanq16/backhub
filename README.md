@@ -19,6 +19,7 @@
 - GitHub token-based authentication (to be used in an environment variable)
 - Easy restoration capability due to it being local mirror
 - Multi-arch and multi-OS binary for simple one-time usage
+- A unique output provider with a fancy and detailed progress monitoring system
 
 # Installation
 
