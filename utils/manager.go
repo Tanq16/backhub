@@ -333,7 +333,6 @@ func (m *Manager) ClearAll() {
 	defer m.mutex.Unlock()
 	for name := range m.outputs {
 		m.outputs[name].StreamLines = []string{}
-		m.outputs[name].Message = ""
 		m.outputs[name].LastUpdated = time.Now()
 	}
 }
@@ -492,11 +491,18 @@ func (m *Manager) updateDisplay() {
 		}
 
 		// Style message based on status
-		styledMessage := info.Message
+		var styledMessage string
 		if info.Status == "success" {
 			styledMessage = successStyle.Render(info.Message)
 		} else if info.Status == "error" {
+			prefixStyle = errorStyle
 			styledMessage = errorStyle.Render(info.Message)
+		} else if info.Status == "warning" {
+			prefixStyle = warningStyle
+			styledMessage = warningStyle.Render(info.Message)
+		} else { // pending or other
+			prefixStyle = pendingStyle
+			styledMessage = pendingStyle.Render(info.Message)
 		}
 		functionPrefix := strings.Repeat(" ", basePadding) + prefixStyle.Render(fmt.Sprintf("%d. ", len(activeFuncs)+len(pendingFuncs)+idx+1))
 		fmt.Printf("%s%s %s %s\n", functionPrefix, statusDisplay, debugStyle.Render(timeStr), styledMessage)
