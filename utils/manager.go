@@ -12,53 +12,6 @@ import (
 	"github.com/charmbracelet/lipgloss/table"
 )
 
-// Table represents a data table wrapper over lipgloss table
-type Table struct {
-	Headers []string
-	Rows    [][]string
-	table   *table.Table
-}
-
-// NewTable creates a new table with the given headers
-func NewTable(headers []string) *Table {
-	t := &Table{
-		Headers: headers,
-		Rows:    [][]string{},
-	}
-	t.table = table.New().Headers(headers...)
-	return t
-}
-
-// AddRow adds a row to the table
-func (t *Table) AddRow(row []string) {
-	t.Rows = append(t.Rows, row)
-	t.table.Row(row...)
-}
-
-// FormatTable formats the table using specified border style (plain or markdown)
-func (t *Table) FormatTable(useMarkdown bool) string {
-	if useMarkdown {
-		return t.table.Border(lipgloss.MarkdownBorder()).String()
-	}
-	return t.table.String()
-}
-
-// PrintTable prints the table to stdout with optional markdown formatting
-func (t *Table) PrintTable(useMarkdown bool) {
-	os.Stdout.WriteString(t.FormatTable(useMarkdown))
-}
-
-// PrintMarkdownTable prints the markdown table to stdout
-func (t *Table) PrintMarkdownTable() {
-	t.PrintTable(true)
-}
-
-// WriteMarkdownTableToFile writes the markdown table to a file
-func (t *Table) WriteMarkdownTableToFile(outputPath string) error {
-	return os.WriteFile(outputPath, []byte(t.FormatTable(true)), 0644)
-}
-
-// Style definitions
 var (
 	// Core styles
 	successStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("2"))             // green
@@ -75,7 +28,6 @@ var (
 	basePadding = 2
 )
 
-// StyleSymbols maps status types to their display symbols
 var StyleSymbols = map[string]string{
 	"pass":    "✓",
 	"fail":    "✗",
@@ -87,26 +39,54 @@ var StyleSymbols = map[string]string{
 	"dot":     "·",
 }
 
-// PrintProgress generates a progress bar string
-func PrintProgress(current, total int, width int) string {
-	if width <= 0 {
-		width = 30
-	}
-	percent := float64(current) / float64(total)
-	filled := min(int(percent*float64(width)), width)
+// ======================================== =================
+// ======================================== Table Definitions
+// ======================================== =================
 
-	bar := "["
-	bar += strings.Repeat("=", filled)
-	if filled < width {
-		bar += ">"
-		bar += strings.Repeat(" ", width-filled-1)
-	}
-	bar += "]"
-
-	return debugStyle.Render(fmt.Sprintf("%s %.1f%% - ", bar, percent*100))
+type Table struct {
+	Headers []string
+	Rows    [][]string
+	table   *table.Table
 }
 
-// FunctionOutput represents the output of a specific function
+func NewTable(headers []string) *Table {
+	t := &Table{
+		Headers: headers,
+		Rows:    [][]string{},
+	}
+	t.table = table.New().Headers(headers...)
+	return t
+}
+
+func (t *Table) ReconcileRows() {
+	if len(t.Rows) == 0 {
+		return
+	}
+	for _, row := range t.Rows {
+		t.table.Row(row...)
+	}
+}
+
+func (t *Table) FormatTable(useMarkdown bool) string {
+	t.ReconcileRows()
+	if useMarkdown {
+		return t.table.Border(lipgloss.MarkdownBorder()).String()
+	}
+	return t.table.String()
+}
+
+func (t *Table) PrintTable(useMarkdown bool) {
+	os.Stdout.WriteString(t.FormatTable(useMarkdown))
+}
+
+func (t *Table) WriteMarkdownTableToFile(outputPath string) error {
+	return os.WriteFile(outputPath, []byte(t.FormatTable(true)), 0644)
+}
+
+// =========================================== ==============
+// =========================================== Output Manager
+// =========================================== ==============
+
 type FunctionOutput struct {
 	Name        string
 	Status      string
@@ -115,40 +95,37 @@ type FunctionOutput struct {
 	Complete    bool
 	StartTime   time.Time
 	LastUpdated time.Time
-	Error       error             // Store the error for detailed output in debug mode
-	Tables      map[string]*Table // Tables associated with this function
-	Index       int               // Order in which this function was registered
+	Error       error
+	Tables      map[string]*Table // Function tables
+	Index       int
 }
 
-// ErrorReport represents an error from a function for summary reporting
 type ErrorReport struct {
 	FunctionName string
 	Error        error
 	Time         time.Time
 }
 
-// Manager handles all terminal output management
+// Output manager main structure
 type Manager struct {
 	outputs         map[string]*FunctionOutput
 	mutex           sync.RWMutex
 	numLines        int
-	maxStreams      int               // Max stream lines per function
+	maxStreams      int               // Max output stream lines per function
 	unlimitedOutput bool              // When true, unlimited output per function
-	tables          map[string]*Table // Global tables that can be displayed
-	errors          []ErrorReport     // Collection of errors for debug output
-	doneCh          chan struct{}     // Channel to signal stopping the display
-	pauseCh         chan bool         // Channel to pause/resume display updates
+	tables          map[string]*Table // Global tables
+	errors          []ErrorReport
+	doneCh          chan struct{} // Channel to signal stopping the display
+	pauseCh         chan bool     // Channel to pause/resume display updates
 	isPaused        bool
-	displayTick     time.Duration  // Interval between display updates
-	functionCount   int            // Counter for function index
-	displayWg       sync.WaitGroup // WaitGroup to coordinate display goroutine shutdown
-	tablesDisplayed bool           // Flag to track if tables have been displayed
+	displayTick     time.Duration // Interval between display updates
+	functionCount   int
+	displayWg       sync.WaitGroup // WaitGroup for display goroutine shutdown
 }
 
-// NewManager creates a new output manager
 func NewManager(maxStreams int) *Manager {
 	if maxStreams <= 0 {
-		maxStreams = 15 // Default value
+		maxStreams = 15 // Default
 	}
 	return &Manager{
 		outputs:         make(map[string]*FunctionOutput),
@@ -159,20 +136,21 @@ func NewManager(maxStreams int) *Manager {
 		doneCh:          make(chan struct{}),
 		pauseCh:         make(chan bool),
 		isPaused:        false,
-		displayTick:     200 * time.Millisecond, // 200ms default update interval
+		displayTick:     200 * time.Millisecond, // Default
 		functionCount:   0,
-		tablesDisplayed: false,
 	}
 }
 
-// SetUnlimitedOutput toggles whether output should be unlimited
 func (m *Manager) SetUnlimitedOutput(unlimited bool) {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
 	m.unlimitedOutput = unlimited
 }
 
-// Pause pauses the display updates
+func (m *Manager) SetUpdateInterval(interval time.Duration) {
+	m.displayTick = interval
+}
+
 func (m *Manager) Pause() {
 	if !m.isPaused {
 		m.pauseCh <- true
@@ -180,7 +158,6 @@ func (m *Manager) Pause() {
 	}
 }
 
-// Resume resumes the display updates
 func (m *Manager) Resume() {
 	if m.isPaused {
 		m.pauseCh <- false
@@ -188,7 +165,6 @@ func (m *Manager) Resume() {
 	}
 }
 
-// Register adds a new function to be tracked
 func (m *Manager) Register(name string) {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
@@ -204,7 +180,6 @@ func (m *Manager) Register(name string) {
 	}
 }
 
-// SetMessage sets the primary message for a function
 func (m *Manager) SetMessage(name, message string) {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
@@ -214,7 +189,6 @@ func (m *Manager) SetMessage(name, message string) {
 	}
 }
 
-// SetStatus updates the status of a function
 func (m *Manager) SetStatus(name, status string) {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
@@ -224,7 +198,6 @@ func (m *Manager) SetStatus(name, status string) {
 	}
 }
 
-// GetStatus retrieves the status of a function
 func (m *Manager) GetStatus(name string) string {
 	m.mutex.RLock()
 	defer m.mutex.RUnlock()
@@ -234,7 +207,6 @@ func (m *Manager) GetStatus(name string) string {
 	return "unknown"
 }
 
-// Complete marks a function as complete
 func (m *Manager) Complete(name string) {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
@@ -248,7 +220,6 @@ func (m *Manager) Complete(name string) {
 	}
 }
 
-// ReportError sets a function's status to error
 func (m *Manager) ReportError(name string, err error) {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
@@ -258,8 +229,7 @@ func (m *Manager) ReportError(name string, err error) {
 		info.Message = fmt.Sprintf("Error: %v", err)
 		info.Error = err
 		info.LastUpdated = time.Now()
-
-		// Add to errors collection for debug output
+		// Add to global error list
 		m.errors = append(m.errors, ErrorReport{
 			FunctionName: name,
 			Error:        err,
@@ -268,7 +238,6 @@ func (m *Manager) ReportError(name string, err error) {
 	}
 }
 
-// UpdateStreamOutput adds lines to a function's stream output
 func (m *Manager) UpdateStreamOutput(name string, output []string) {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
@@ -295,39 +264,34 @@ func (m *Manager) UpdateStreamOutput(name string, output []string) {
 	}
 }
 
-// AddProgressBar sets a progress bar as the stream content
-func (m *Manager) AddProgressBar(name string, percentage float64, text string) {
+func (m *Manager) AddProgressBarToStream(name string, percentage float64, text string) {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
-
 	if info, exists := m.outputs[name]; exists {
-		// Clamp percentage between 0 and 100
 		percentage = max(0, min(percentage, 100))
-
-		// Generate the progress bar
-		progressBar := PrintProgress(int(percentage), 100, 30)
-
-		// Add text if provided
+		progressBar := PrintProgressBar(int(percentage), 100, 30)
 		display := progressBar + debugStyle.Render(text)
-
-		// Set this as the only stream line, replacing any existing lines
-		info.StreamLines = []string{display}
+		info.StreamLines = []string{display} // Set as only stream so nothing else is displayed
 		info.LastUpdated = time.Now()
 	}
 }
 
-// AddStreamLine adds a single line to a function's stream output
-func (m *Manager) AddStreamLine(name, line string) {
-	m.UpdateStreamOutput(name, []string{line})
+func PrintProgressBar(current, total int, width int) string {
+	if width <= 0 {
+		width = 30
+	}
+	percent := float64(current) / float64(total)
+	filled := min(int(percent*float64(width)), width)
+	bar := "("
+	bar += strings.Repeat(StyleSymbols["bullet"], filled)
+	if filled < width {
+		bar += ">"
+		bar += strings.Repeat(" ", width-filled-1)
+	}
+	bar += ")"
+	return debugStyle.Render(fmt.Sprintf("%s %.1f%% %s ", bar, percent*100, StyleSymbols["dot"]))
 }
 
-// ClearOutput clears the entire screen
-func (m *Manager) ClearOutput() {
-	fmt.Print("\033[H\033[2J")
-	m.numLines = 0
-}
-
-// ClearLines clears 'n' previous lines
 func (m *Manager) ClearLines(n int) {
 	if n <= 0 {
 		return
@@ -336,7 +300,6 @@ func (m *Manager) ClearLines(n int) {
 	m.numLines = max(m.numLines-n, 0)
 }
 
-// ClearFunction clears the output of a specific function
 func (m *Manager) ClearFunction(name string) {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
@@ -347,7 +310,6 @@ func (m *Manager) ClearFunction(name string) {
 	}
 }
 
-// ClearAll clears all function outputs
 func (m *Manager) ClearAll() {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
@@ -358,8 +320,7 @@ func (m *Manager) ClearAll() {
 	}
 }
 
-// GetStatusDisplay returns a styled status indicator based on status
-func (m *Manager) GetStatusDisplay(status string) string {
+func (m *Manager) GetStatusIndicator(status string) string {
 	switch status {
 	case "success", "pass":
 		return successStyle.Render(StyleSymbols["pass"])
@@ -374,7 +335,7 @@ func (m *Manager) GetStatusDisplay(status string) string {
 	}
 }
 
-// RegisterTable adds a table to the manager
+// Add a global table
 func (m *Manager) RegisterTable(name string, headers []string) *Table {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
@@ -383,7 +344,7 @@ func (m *Manager) RegisterTable(name string, headers []string) *Table {
 	return table
 }
 
-// RegisterFunctionTable adds a table to a specific function
+// Adds a function-specific table
 func (m *Manager) RegisterFunctionTable(funcName string, name string, headers []string) *Table {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
@@ -395,45 +356,6 @@ func (m *Manager) RegisterFunctionTable(funcName string, name string, headers []
 	return nil
 }
 
-// GetTable retrieves a table by name
-func (m *Manager) GetTable(name string) *Table {
-	m.mutex.RLock()
-	defer m.mutex.RUnlock()
-	return m.tables[name]
-}
-
-// GetFunctionTable retrieves a function's table by name
-func (m *Manager) GetFunctionTable(funcName string, tableName string) *Table {
-	m.mutex.RLock()
-	defer m.mutex.RUnlock()
-	if info, exists := m.outputs[funcName]; exists {
-		return info.Tables[tableName]
-	}
-	return nil
-}
-
-// DisplayTable displays a specific table
-func (m *Manager) DisplayTable(name string, useMarkdown bool) {
-	m.mutex.RLock()
-	defer m.mutex.RUnlock()
-	if table, exists := m.tables[name]; exists {
-		if m.numLines > 0 {
-			fmt.Printf("\033[%dA\033[J", m.numLines)
-		}
-		tableStr := table.FormatTable(useMarkdown)
-		fmt.Print(tableStr)
-		m.numLines = strings.Count(tableStr, "\n")
-	}
-}
-
-// RemoveTable removes a table from the manager
-func (m *Manager) RemoveTable(name string) {
-	m.mutex.Lock()
-	defer m.mutex.Unlock()
-	delete(m.tables, name)
-}
-
-// sortFunctions returns sorted functions based on their status
 func (m *Manager) sortFunctions() (active, pending, completed []struct {
 	name string
 	info *FunctionOutput
@@ -443,7 +365,6 @@ func (m *Manager) sortFunctions() (active, pending, completed []struct {
 		info  *FunctionOutput
 		index int
 	}
-
 	// Collect all functions
 	for name, info := range m.outputs {
 		allFuncs = append(allFuncs, struct {
@@ -452,12 +373,10 @@ func (m *Manager) sortFunctions() (active, pending, completed []struct {
 			index int
 		}{name, info, info.Index})
 	}
-
 	// Sort by index (registration order)
 	sort.Slice(allFuncs, func(i, j int) bool {
 		return allFuncs[i].index < allFuncs[j].index
 	})
-
 	// Group functions by status
 	for _, f := range allFuncs {
 		if f.info.Complete {
@@ -477,36 +396,28 @@ func (m *Manager) sortFunctions() (active, pending, completed []struct {
 			}{f.name, f.info})
 		}
 	}
-
 	return active, pending, completed
 }
 
-// updateDisplay updates the console display with all function outputs
 func (m *Manager) updateDisplay() {
 	m.mutex.RLock()
 	defer m.mutex.RUnlock()
-
 	if m.numLines > 0 && !m.unlimitedOutput {
 		fmt.Printf("\033[%dA\033[J", m.numLines)
 	}
 	lineCount := 0
-
-	// Get sorted functions
 	activeFuncs, pendingFuncs, completedFuncs := m.sortFunctions()
 
 	// Display active functions
 	for idx, f := range activeFuncs {
 		info := f.info
-		statusDisplay := m.GetStatusDisplay(info.Status)
-
-		// Calculate elapsed time
+		statusDisplay := m.GetStatusIndicator(info.Status)
 		elapsed := time.Since(info.StartTime).Round(time.Millisecond)
 		elapsedStr := fmt.Sprintf("[%s]", elapsed)
 
 		// Style the message based on status
 		var styledMessage string
 		var prefixStyle lipgloss.Style
-
 		switch info.Status {
 		case "success":
 			styledMessage = successStyle.Render(info.Message)
@@ -521,19 +432,11 @@ func (m *Manager) updateDisplay() {
 			styledMessage = pendingStyle.Render(info.Message)
 			prefixStyle = pendingStyle
 		}
-
-		// Format with proper padding and numbering
-		functionPrefix := strings.Repeat(" ", basePadding) +
-			prefixStyle.Render(fmt.Sprintf("%d. ", idx+1))
-
-		fmt.Printf("%s%s %s %s\n",
-			functionPrefix,
-			statusDisplay,
-			debugStyle.Render(elapsedStr),
-			styledMessage)
+		functionPrefix := strings.Repeat(" ", basePadding) + prefixStyle.Render(fmt.Sprintf("%d. ", idx+1))
+		fmt.Printf("%s%s %s %s\n", functionPrefix, statusDisplay, debugStyle.Render(elapsedStr), styledMessage)
 		lineCount++
 
-		// Print stream lines with proper indentation
+		// Print stream lines with indentation
 		if len(info.StreamLines) > 0 {
 			indent := strings.Repeat(" ", basePadding+4) // Additional indentation for stream output
 			for _, line := range info.StreamLines {
@@ -546,18 +449,10 @@ func (m *Manager) updateDisplay() {
 	// Display pending functions
 	for idx, f := range pendingFuncs {
 		info := f.info
-		statusDisplay := m.GetStatusDisplay(info.Status)
-
-		// Format with proper padding and numbering
-		functionPrefix := strings.Repeat(" ", basePadding) +
-			pendingStyle.Render(fmt.Sprintf("%d. ", len(activeFuncs)+idx+1))
-
-		fmt.Printf("%s%s %s\n",
-			functionPrefix,
-			statusDisplay,
-			pendingStyle.Render("Waiting..."))
+		statusDisplay := m.GetStatusIndicator(info.Status)
+		functionPrefix := strings.Repeat(" ", basePadding) + pendingStyle.Render(fmt.Sprintf("%d. ", len(activeFuncs)+idx+1))
+		fmt.Printf("%s%s %s\n", functionPrefix, statusDisplay, pendingStyle.Render("Waiting..."))
 		lineCount++
-
 		if len(info.StreamLines) > 0 {
 			indent := strings.Repeat(" ", basePadding+4)
 			for _, line := range info.StreamLines {
@@ -570,13 +465,9 @@ func (m *Manager) updateDisplay() {
 	// Display completed functions
 	for idx, f := range completedFuncs {
 		info := f.info
-		statusDisplay := m.GetStatusDisplay(info.Status)
-
-		// Calculate total time
+		statusDisplay := m.GetStatusIndicator(info.Status)
 		totalTime := info.LastUpdated.Sub(info.StartTime).Round(time.Millisecond)
 		timeStr := fmt.Sprintf("[%s]", totalTime)
-
-		// Style based on status
 		prefixStyle := successStyle
 		if info.Status == "error" {
 			prefixStyle = errorStyle
@@ -589,18 +480,11 @@ func (m *Manager) updateDisplay() {
 		} else if info.Status == "error" {
 			styledMessage = errorStyle.Render(info.Message)
 		}
-
-		// Format with proper padding and numbering
-		functionPrefix := strings.Repeat(" ", basePadding) +
-			prefixStyle.Render(fmt.Sprintf("%d. ", len(activeFuncs)+len(pendingFuncs)+idx+1))
-
-		fmt.Printf("%s%s %s %s\n",
-			functionPrefix,
-			statusDisplay,
-			debugStyle.Render(timeStr),
-			styledMessage)
+		functionPrefix := strings.Repeat(" ", basePadding) + prefixStyle.Render(fmt.Sprintf("%d. ", len(activeFuncs)+len(pendingFuncs)+idx+1))
+		fmt.Printf("%s%s %s %s\n", functionPrefix, statusDisplay, debugStyle.Render(timeStr), styledMessage)
 		lineCount++
 
+		// Print stream lines with indentation if unlimited mode is enabled
 		if m.unlimitedOutput && len(info.StreamLines) > 0 {
 			indent := strings.Repeat(" ", basePadding+4)
 			for _, line := range info.StreamLines {
@@ -609,11 +493,9 @@ func (m *Manager) updateDisplay() {
 			}
 		}
 	}
-
 	m.numLines = lineCount
 }
 
-// StartDisplay starts the automatic display update goroutine
 func (m *Manager) StartDisplay() {
 	m.displayWg.Add(1)
 	go func() {
@@ -632,36 +514,22 @@ func (m *Manager) StartDisplay() {
 				if !m.unlimitedOutput {
 					m.ClearAll()
 				}
-				// Display final output
-				m.displayTables()
 				m.ShowSummary()
+				m.displayTables()
 				return
 			}
 		}
 	}()
 }
 
-// StopDisplay stops the automatic display updates and waits for completion
 func (m *Manager) StopDisplay() {
-	close(m.doneCh)    // Signal the goroutine to stop
+	close(m.doneCh)
 	m.displayWg.Wait() // Wait for goroutine to finish
 }
 
-// SetUpdateInterval sets the interval between display updates
-func (m *Manager) SetUpdateInterval(interval time.Duration) {
-	m.displayTick = interval
-}
-
-// displayTables displays all tables at the end
 func (m *Manager) displayTables() {
-	m.mutex.Lock()
-	m.tablesDisplayed = true
-	m.mutex.Unlock()
-
 	m.mutex.RLock()
 	defer m.mutex.RUnlock()
-
-	// Display global tables
 	if len(m.tables) > 0 {
 		fmt.Println(strings.Repeat(" ", basePadding) + headerStyle.Render("Global Tables:"))
 		for name, table := range m.tables {
@@ -669,8 +537,7 @@ func (m *Manager) displayTables() {
 			fmt.Println(table.FormatTable(false))
 		}
 	}
-
-	// Check for function tables
+	// Display function tables
 	hasFunctionTables := false
 	for _, info := range m.outputs {
 		if len(info.Tables) > 0 {
@@ -678,8 +545,6 @@ func (m *Manager) displayTables() {
 			break
 		}
 	}
-
-	// Display function tables
 	if hasFunctionTables {
 		fmt.Println(strings.Repeat(" ", basePadding) + headerStyle.Render("Function Tables:"))
 		for _, info := range m.outputs {
@@ -694,43 +559,26 @@ func (m *Manager) displayTables() {
 	}
 }
 
-// displayErrors displays all errors in debug mode
 func (m *Manager) displayErrors() {
 	if len(m.errors) == 0 {
 		return
 	}
-
 	fmt.Println()
 	fmt.Println(strings.Repeat(" ", basePadding) + errorStyle.Bold(true).Render("Errors:"))
-
 	for i, err := range m.errors {
 		fmt.Printf("%s%s %s %s\n",
 			strings.Repeat(" ", basePadding+2),
 			errorStyle.Render(fmt.Sprintf("%d.", i+1)),
 			debugStyle.Render(fmt.Sprintf("[%s]", err.Time.Format("15:04:05"))),
 			errorStyle.Render(fmt.Sprintf("Function: %s", err.FunctionName)))
-
-		fmt.Printf("%s%s\n",
-			strings.Repeat(" ", basePadding+4),
-			errorStyle.Render(fmt.Sprintf("Error: %v", err.Error)))
+		fmt.Printf("%s%s\n", strings.Repeat(" ", basePadding+4), errorStyle.Render(fmt.Sprintf("Error: %v", err.Error)))
 	}
 }
 
-// ShowSummary displays a final summary of all functions
 func (m *Manager) ShowSummary() {
 	m.mutex.RLock()
-	alreadyDisplayedTables := m.tablesDisplayed
-	m.mutex.RUnlock()
-
-	m.mutex.Lock()
-	m.tablesDisplayed = true
-	m.mutex.Unlock()
-
-	m.mutex.RLock()
 	defer m.mutex.RUnlock()
-
 	fmt.Println()
-
 	var success, failures int
 	for _, info := range m.outputs {
 		if info.Status == "success" {
@@ -739,39 +587,12 @@ func (m *Manager) ShowSummary() {
 			failures++
 		}
 	}
-
-	// Format statistics with colors
 	totalOps := fmt.Sprintf("Total Operations: %d", len(m.outputs))
 	succeeded := fmt.Sprintf("Succeeded: %s", successStyle.Render(fmt.Sprintf("%d", success)))
 	failed := fmt.Sprintf("Failed: %s", errorStyle.Render(fmt.Sprintf("%d", failures)))
-
-	// Print the summary
 	fmt.Println(infoStyle.Padding(0, basePadding).Render(fmt.Sprintf("%s, %s, %s", totalOps, succeeded, failed)))
-
-	// Don't display tables if they've already been displayed
-	if !alreadyDisplayedTables {
-		m.displayTables()
-	}
-
 	if m.unlimitedOutput {
 		m.displayErrors()
 	}
-}
-
-// Remove removes a function from the manager
-func (m *Manager) Remove(name string) {
-	m.mutex.Lock()
-	defer m.mutex.Unlock()
-	delete(m.outputs, name)
-}
-
-// RemoveCompleted removes completed functions from the manager
-func (m *Manager) RemoveCompleted() {
-	m.mutex.Lock()
-	defer m.mutex.Unlock()
-	for name, info := range m.outputs {
-		if info.Complete {
-			delete(m.outputs, name)
-		}
-	}
+	fmt.Println()
 }

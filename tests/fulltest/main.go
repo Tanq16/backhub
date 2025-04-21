@@ -29,9 +29,9 @@ func main() {
 
 	// Create a global statistics table
 	statsTable := outputMgr.RegisterTable("Statistics", []string{"Operation", "Count", "Status"})
-	statsTable.AddRow([]string{"Repositories", "5", "Pending"})
-	statsTable.AddRow([]string{"Files", "0", "Pending"})
-	statsTable.AddRow([]string{"Bytes", "0", "Pending"})
+	statsTable.Rows = append(statsTable.Rows, []string{"Repositories", "5", "Pending"})
+	statsTable.Rows = append(statsTable.Rows, []string{"Files", "0", "Pending"})
+	statsTable.Rows = append(statsTable.Rows, []string{"Bytes", "0", "Pending"})
 
 	// Sample repositories to process
 	repos := []struct {
@@ -75,8 +75,7 @@ func main() {
 			outputMgr.SetMessage(taskName, fmt.Sprintf("Processing %s", repo.Name))
 
 			// Create a function-specific table
-			repoTable := outputMgr.RegisterFunctionTable(taskName, fmt.Sprintf("%s-details", repo.Name),
-				[]string{"Operation", "Status", "Duration"})
+			repoTable := outputMgr.RegisterFunctionTable(taskName, fmt.Sprintf("%s-details", repo.Name), []string{"Operation", "Status", "Duration"})
 
 			// Simulate processing steps
 			steps := []string{
@@ -112,16 +111,16 @@ func main() {
 
 				// Log progress
 				progress := float64(i+1) / float64(len(steps)) * 100
-				outputMgr.AddStreamLine(taskName, fmt.Sprintf("%s (%.0f%%)", step, progress))
+				outputMgr.UpdateStreamOutput(taskName, []string{fmt.Sprintf("%s (%.0f%%)", step, progress)})
 
 				// Add to repo table
 				elapsed := time.Since(startTime).Round(100 * time.Millisecond)
-				repoTable.AddRow([]string{step, "Complete", elapsed.String()})
+				repoTable.Rows = append(repoTable.Rows, []string{step, "Complete", elapsed.String()})
 
 				// Add some randomized messages for more realistic output
 				if rand.Float32() > 0.7 {
 					extraMsg := getRandomProgressMessage()
-					outputMgr.AddStreamLine(taskName, extraMsg)
+					outputMgr.UpdateStreamOutput(taskName, []string{extraMsg})
 				}
 			}
 
@@ -203,7 +202,7 @@ func runProgressReporter(mgr *utils.Manager, wg *sync.WaitGroup) {
 
 		// Add progress message
 		status := fmt.Sprintf("Step %d of %d", step, totalSteps)
-		mgr.AddProgressBar(progressName, percentage, status)
+		mgr.AddProgressBarToStream(progressName, percentage, status)
 
 		// Track specific checkpoints in our table
 		elapsed := time.Since(startTime).Round(100 * time.Millisecond)
@@ -211,25 +210,25 @@ func runProgressReporter(mgr *utils.Manager, wg *sync.WaitGroup) {
 		// Add checkpoint entries at 25%, 50%, 75% and 100%
 		if step == totalSteps/4 {
 			checkpointTimes[0] = time.Now()
-			metricsTable.AddRow([]string{"25%", elapsed.String(), "In Progress", fmt.Sprintf("%d KB", rand.Intn(1000)+500)})
+			metricsTable.Rows = append(metricsTable.Rows, []string{"25%", elapsed.String(), "In Progress", fmt.Sprintf("%d KB", rand.Intn(1000)+500)})
 			mgr.SetMessage(progressName, "Progress reporter at 25%")
 		} else if step == totalSteps/2 {
 			checkpointTimes[1] = time.Now()
-			metricsTable.AddRow([]string{"50%", elapsed.String(), "In Progress", fmt.Sprintf("%d KB", rand.Intn(1000)+1500)})
+			metricsTable.Rows = append(metricsTable.Rows, []string{"50%", elapsed.String(), "In Progress", fmt.Sprintf("%d KB", rand.Intn(1000)+1500)})
 			mgr.SetMessage(progressName, "Progress reporter at 50%")
 		} else if step == totalSteps*3/4 {
 			checkpointTimes[2] = time.Now()
-			metricsTable.AddRow([]string{"75%", elapsed.String(), "In Progress", fmt.Sprintf("%d KB", rand.Intn(1000)+2500)})
+			metricsTable.Rows = append(metricsTable.Rows, []string{"75%", elapsed.String(), "In Progress", fmt.Sprintf("%d KB", rand.Intn(1000)+2500)})
 			mgr.SetMessage(progressName, "Progress reporter at 75%")
 		} else if step == totalSteps {
 			checkpointTimes[3] = time.Now()
-			metricsTable.AddRow([]string{"100%", elapsed.String(), "Complete", fmt.Sprintf("%d KB", rand.Intn(1000)+3500)})
+			metricsTable.Rows = append(metricsTable.Rows, []string{"100%", elapsed.String(), "Complete", fmt.Sprintf("%d KB", rand.Intn(1000)+3500)})
 		}
 	}
 
 	// Add a summary row
 	totalElapsed := time.Since(startTime).Round(100 * time.Millisecond)
-	metricsTable.AddRow([]string{"Total", totalElapsed.String(), "Complete", "Complete"})
+	metricsTable.Rows = append(metricsTable.Rows, []string{"Total", totalElapsed.String(), "Complete", "Complete"})
 
 	// Complete the task
 	mgr.SetMessage(progressName, "Progress reporter completed")
