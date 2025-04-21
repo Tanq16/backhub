@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing/transport/http"
@@ -35,11 +36,18 @@ func (h *Handler) backupRepo(repo, taskName string) error {
 func (h *Handler) cloneRepo(repoURL, folderName string, auth *http.BasicAuth, taskName string) error {
 	h.outputMgr.SetMessage(taskName, fmt.Sprintf("Cloning %s", repoURL))
 	h.outputMgr.AddStreamLine(taskName, "Starting clone operation")
+	progress := &gitProgressWriter{
+		taskName:    taskName,
+		outputMgr:   h.outputMgr,
+		buffer:      []string{},
+		lastUpdate:  time.Now(),
+		minInterval: 500 * time.Millisecond,
+	}
 	_, err := git.PlainClone(folderName, true, &git.CloneOptions{
 		URL:      repoURL,
 		Auth:     auth,
 		Mirror:   true,
-		Progress: nil,
+		Progress: progress,
 	})
 	if err != nil {
 		h.outputMgr.AddStreamLine(taskName, fmt.Sprintf("Clone failed: %s", err))
@@ -60,10 +68,17 @@ func (h *Handler) updateRepo(folderName string, auth *http.BasicAuth, taskName s
 		return fmt.Errorf("failed to open repository: %w", err)
 	}
 	h.outputMgr.AddStreamLine(taskName, "Fetching updates from remote")
+	progress := &gitProgressWriter{
+		taskName:    taskName,
+		outputMgr:   h.outputMgr,
+		buffer:      []string{},
+		lastUpdate:  time.Now(),
+		minInterval: 500 * time.Millisecond,
+	}
 	err = repo.Fetch(&git.FetchOptions{
 		Auth:     auth,
 		Force:    true,
-		Progress: nil,
+		Progress: progress,
 		Tags:     git.AllTags,
 	})
 	if err == git.NoErrAlreadyUpToDate {
