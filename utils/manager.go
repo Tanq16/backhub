@@ -264,6 +264,24 @@ func (m *Manager) UpdateStreamOutput(name string, output []string) {
 	}
 }
 
+func (m *Manager) AddStreamLine(name string, line string) {
+	m.mutex.Lock()
+	defer m.mutex.Unlock()
+	if info, exists := m.outputs[name]; exists {
+		if m.unlimitedOutput { // just append
+			info.StreamLines = append(info.StreamLines, line)
+		} else { // enforce size limit
+			currentLen := len(info.StreamLines)
+			if currentLen+1 > m.maxStreams {
+				info.StreamLines = append(info.StreamLines[1:], line)
+			} else {
+				info.StreamLines = append(info.StreamLines, line)
+			}
+		}
+		info.LastUpdated = time.Now()
+	}
+}
+
 func (m *Manager) AddProgressBarToStream(name string, percentage float64, text string) {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
@@ -514,6 +532,7 @@ func (m *Manager) StartDisplay() {
 				if !m.unlimitedOutput {
 					m.ClearAll()
 				}
+				m.updateDisplay()
 				m.ShowSummary()
 				m.displayTables()
 				return

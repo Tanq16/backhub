@@ -25,17 +25,16 @@ type Handler struct {
 func NewHandler(token string) *Handler {
 	return &Handler{
 		token:       token,
-		outputMgr:   utils.NewManager(10),
+		outputMgr:   utils.NewManager(15),
 		concurrency: 5,
 		cloneFolder: ".",
 	}
 }
 
 func (h *Handler) Setup() {
-	h.outputMgr.SetUnlimitedOutput(false)
-	h.outputMgr.StartDisplay()
 	h.outputMgr.Register("logistics")
 	h.outputMgr.SetMessage("logistics", "Setting up BackHub")
+	h.outputMgr.StartDisplay()
 }
 
 // Loads repository configuration from a file or direct repo path
@@ -66,8 +65,9 @@ func (h *Handler) LoadConfig(path string) error {
 func (h *Handler) ValidateToken() error {
 	if h.token == "" {
 		h.outputMgr.AddStreamLine("logistics", "proceeding without GitHub token")
-		// return fmt.Errorf("GitHub token (GH_TOKEN) is not set")
+		h.outputMgr.SetStatus("logistics", "warning")
 	} else {
+		h.outputMgr.SetStatus("logistics", "pending")
 		h.outputMgr.AddStreamLine("logistics", "GitHub token is set")
 	}
 	return nil
@@ -79,7 +79,7 @@ func (h *Handler) ExecuteBackup() error {
 	wg := &sync.WaitGroup{}
 	toProcess := make(chan string, repoCount)
 
-	// Start producer
+	h.outputMgr.SetMessage("logistics", fmt.Sprintf("Processing %d repositories", repoCount))
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
@@ -110,22 +110,26 @@ func (h *Handler) ExecuteBackup() error {
 	wg.Wait()
 
 	// Final summary
+	h.outputMgr.SetMessage("logistics", "Backup process completed")
+	h.outputMgr.Complete("logistics")
 	h.outputMgr.StopDisplay()
-	h.outputMgr.ShowSummary()
 	return nil
 }
 
 // Entry point to run the backup process
 func (h *Handler) RunBackup(configPath string, unlimitedOutput bool) error {
-	h.Setup()
 	h.outputMgr.SetUnlimitedOutput(unlimitedOutput)
+	h.Setup()
 	if err := h.ValidateToken(); err != nil {
+		h.outputMgr.ReportError("logistics", err)
+		h.outputMgr.StopDisplay()
 		return err
 	}
 	if err := h.LoadConfig(configPath); err != nil {
+		h.outputMgr.ReportError("logistics", err)
+		h.outputMgr.StopDisplay()
 		return err
 	}
 	h.outputMgr.SetMessage("logistics", "Backup logistics completed")
-	h.outputMgr.Complete("logistics")
 	return h.ExecuteBackup()
 }
